@@ -1,0 +1,36 @@
+@inherits LayoutComponentBase
+@inject IDeviceService DeviceService
+@inject ILegoModelService ModelService
+@inject IJSRuntime JS
+
+<MudThemeProvider IsDarkMode="@_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div style="position: fixed; inset: 0; background: var(--mud-palette-background); overflow: hidden;">
+    @if (_initialized)
+    {
+        @Body
+    }
+    else
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+</div>
+
+@code {
+    private const string ThemeKey = "lc_darkmode";
+    private bool _isDarkMode = false;
+    private bool _initialized = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var stored = await JS.InvokeAsync<string?>("localStorage.getItem", ThemeKey);
+        _isDarkMode = stored == "true";
+
+        await ModelService.InitializeAsync();
+        await DeviceService.InitializeAsync();
+        _initialized = true;
+    }
+}

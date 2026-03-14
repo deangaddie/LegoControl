@@ -1,0 +1,443 @@
+@page "/devices/play/{Id:guid}"
+@inject IDeviceService DeviceService
+@inject ILegoModelService ModelService
+@inject IBluetoothService BluetoothService
+@inject ILegoHubService HubService
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Play — @(_device?.Name ?? "Device")</PageTitle>
+
+@if (_device is null)
+{
+    <MudAlert Severity="Severity.Error">Device not found.</MudAlert>
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="@(() => Nav.NavigateTo("/devices"))" />
+            <div>
+                <MudText Typo="Typo.h5">@_device.Name</MudText>
+                @if (_model is not null)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_model.Name (#@_model.SetNumber)</MudText>
+                }
+            </div>
+        </MudStack>
+        <BluetoothConnectButton />
+    </MudStack>
+
+    @if (_mode == ControlMode.Select)
+    {
+        <MudText Typo="Typo.h6" Class="mb-3">Choose a control mode</MudText>
+        <MudGrid>
+            @if (_hasTouch)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudCard Class="pa-2" Style="cursor: pointer;" @onclick="@(() => Nav.NavigateTo($"/devices/play/{Id}/touch"))">
+                        <MudCardContent>
+                            <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.TouchApp" Style="font-size: 3rem;" Color="Color.Primary" />
+                                <MudText Typo="Typo.h6">Touch Controls</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                                    Full-screen dual-stick controller. Left thumb = throttle, right thumb = steering.
+                                </MudText>
+                            </MudStack>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+            <MudItem xs="12" sm="6">
+                <MudCard Class="pa-2" Style="cursor: pointer;" @onclick="@(() => _mode = ControlMode.Keyboard)">
+                    <MudCardContent>
+                        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.Keyboard" Style="font-size: 3rem;" Color="Color.Secondary" />
+                            <MudText Typo="Typo.h6">Keyboard Controls</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                                Arrow keys to drive. Customisable key bindings.
+                            </MudText>
+                        </MudStack>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    }
+    else if (_mode == ControlMode.Keyboard)
+    {
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small"
+                               OnClick="@(() => { _mode = ControlMode.Select; StopAllMotors(); })" />
+                <MudText Typo="Typo.h6">Keyboard Controls</MudText>
+            </MudStack>
+            <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Settings"
+                       OnClick="OpenCustomiseDialog">Customise</MudButton>
+        </MudStack>
+
+        @if (!BluetoothService.IsConnected)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-3">Connect via Bluetooth to send commands.</MudAlert>
+        }
+
+        <!-- Key binding display -->
+        <MudPaper Elevation="1" Class="pa-4 mb-4" Style="max-width: 400px;">
+            <MudText Typo="Typo.subtitle2" Class="mb-3">Active Bindings</MudText>
+            <MudGrid Spacing="1">
+                <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Throttle forward</MudText></MudItem>
+                <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.ThrottleUp</MudChip></MudItem>
+                <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Throttle reverse</MudText></MudItem>
+                <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.ThrottleDown</MudChip></MudItem>
+                <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Steer left</MudText></MudItem>
+                <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.SteerLeft</MudChip></MudItem>
+                <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Steer right</MudText></MudItem>
+                <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.SteerRight</MudChip></MudItem>
+            </MudGrid>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3">
+                Hold keys to maintain speed/position. Release to stop.
+            </MudText>
+        </MudPaper>
+
+        <!-- Keyboard capture area -->
+        <div @ref="_keyboardRef" tabindex="0"
+             style="outline: 2px dashed var(--mud-palette-primary); border-radius: 8px; padding: 24px; text-align: center; cursor: pointer; max-width: 400px;"
+             @onkeydown="OnKeyDown" @onkeyup="OnKeyUp"
+             @onfocus="@(() => _keyboardFocused = true)"
+             @onblur="@(() => { _keyboardFocused = false; StopAllMotors(); })">
+            @if (_keyboardFocused)
+            {
+                <MudText Typo="Typo.body1" Color="Color.Primary">Keyboard active — use arrow keys to drive</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Click outside to release</MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.body1">Click here to activate keyboard control</MudText>
+            }
+        </div>
+
+        <!-- Motor feedback -->
+        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Motor Feedback</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Yellow = requested &nbsp;|&nbsp; Green/Red = actual</MudText>
+        <MotorFeedbackPanel Motors="_motors"
+                            HubService="HubService"
+                            RequestedSpeeds="_requestedSpeeds"
+                            RequestedPositions="_requestedPositions" />
+    }
+}
+
+<!-- Customise key bindings dialog -->
+<MudDialog @bind-Visible="_showCustomise" Options="@(new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true })">
+    <TitleContent>Customise Key Bindings</TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">Click an action, then press the key you want to assign.</MudText>
+        @foreach (var action in _bindingActions)
+        {
+            var a = action;
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+                <MudText Typo="Typo.body2">@a.Label</MudText>
+                <MudButton Variant="@(_rebindingAction == a.Id ? Variant.Filled : Variant.Outlined)"
+                           Color="@(_rebindingAction == a.Id ? Color.Warning : Color.Default)"
+                           Size="Size.Small"
+                           tabindex="0"
+                           @onkeydown="@((KeyboardEventArgs e) => OnRebindKey(a.Id, e))"
+                           OnClick="@(() => _rebindingAction = a.Id)">
+                    @(_rebindingAction == a.Id ? "Press a key…" : a.CurrentKey(_bindings))
+                </MudButton>
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseCustomiseDialog">Done</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private enum ControlMode { Select, Keyboard }
+
+    private Device? _device;
+    private LegoModel? _model;
+    private List<MotorConfig> _motors = [];
+    private ControlMode _mode = ControlMode.Select;
+    private bool _hasTouch = false;
+
+    private IJSObjectReference? _jsModule;
+    private ElementReference _keyboardRef;
+    private bool _keyboardFocused = false;
+
+    private readonly Dictionary<string, int> _requestedSpeeds = new();
+    private readonly Dictionary<string, int> _requestedPositions = new();
+    private readonly HashSet<string> _heldKeys = new();
+
+    // Command throttle timer
+    private PeriodicTimer? _commandTimer;
+    private Task? _commandLoopTask;
+
+    // Key bindings
+    private KeyBindings _bindings = new();
+    private const string BindingsKey = "lc_keybindings";
+
+    // Customise dialog
+    private bool _showCustomise = false;
+    private string? _rebindingAction = null;
+
+    private record BindingActionDef(string Id, string Label, Func<KeyBindings, string> CurrentKey);
+    private readonly List<BindingActionDef> _bindingActions =
+    [
+        new("throttleUp",   "Throttle forward", b => b.ThrottleUp),
+        new("throttleDown", "Throttle reverse",  b => b.ThrottleDown),
+        new("steerLeft",    "Steer left",         b => b.SteerLeft),
+        new("steerRight",   "Steer right",        b => b.SteerRight),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/lego-bluetooth.js");
+        _hasTouch = await _jsModule.InvokeAsync<bool>("hasTouchSupport");
+
+        var stored = await JS.InvokeAsync<string?>("localStorage.getItem", BindingsKey);
+        if (stored is not null)
+        {
+            try { _bindings = System.Text.Json.JsonSerializer.Deserialize<KeyBindings>(stored) ?? new(); }
+            catch { /* use defaults */ }
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        _device = DeviceService.Devices.FirstOrDefault(d => d.Id == Id);
+        if (_device is null) return;
+
+        _model = ModelService.Models.FirstOrDefault(m => m.Id == _device.ModelId);
+        _motors = _device.Config.Motors.Select(m => new MotorConfig
+        {
+            PortId = m.PortId, Label = m.Label, Role = m.Role,
+            InvertDirection = m.InvertDirection, LinkedPortId = m.LinkedPortId, InvertLink = m.InvertLink,
+            MinSpeed = m.MinSpeed, MaxSpeed = m.MaxSpeed,
+            SteeringMaxLeft = m.SteeringMaxLeft, SteeringMaxRight = m.SteeringMaxRight,
+        }).ToList();
+
+        foreach (var m in _motors)
+        {
+            _requestedSpeeds.TryAdd(m.PortId, 0);
+            _requestedPositions.TryAdd(m.PortId, 0);
+        }
+
+        BluetoothService.ConnectionStateChanged += OnConnectionStateChanged;
+        HubService.MotorSpeedChanged += OnMotorFeedbackChanged;
+        HubService.MotorPositionChanged += OnMotorFeedbackChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _mode == ControlMode.Keyboard)
+            await FocusKeyboard();
+    }
+
+    private async Task FocusKeyboard()
+    {
+        try { await JS.InvokeVoidAsync("eval", "arguments[0].focus()", _keyboardRef); }
+        catch { /* best effort */ }
+    }
+
+    private void OnConnectionStateChanged() => InvokeAsync(async () =>
+    {
+        StateHasChanged();
+        if (BluetoothService.IsConnected)
+        {
+            foreach (var m in _motors)
+            {
+                if (m.Role == MotorRole.Steering)
+                    await HubService.SubscribeMotorPositionAsync(m.PortId);
+                else
+                    await HubService.SubscribeMotorSpeedAsync(m.PortId);
+            }
+        }
+        else
+        {
+            StopAllMotors();
+        }
+    });
+
+    private void OnMotorFeedbackChanged(string _, int __) => InvokeAsync(StateHasChanged);
+
+    // ── Keyboard handling ──────────────────────────────────────────────────────
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Repeat) return;
+        _heldKeys.Add(e.Code);
+        await ApplyKeyState();
+        EnsureCommandLoop();
+    }
+
+    private async Task OnKeyUp(KeyboardEventArgs e)
+    {
+        _heldKeys.Remove(e.Code);
+        await ApplyKeyState();
+        if (_heldKeys.Count == 0) StopCommandLoop();
+    }
+
+    private async Task ApplyKeyState()
+    {
+        if (!BluetoothService.IsConnected) return;
+
+        bool up    = _heldKeys.Contains(_bindings.ThrottleUp);
+        bool down  = _heldKeys.Contains(_bindings.ThrottleDown);
+        bool left  = _heldKeys.Contains(_bindings.SteerLeft);
+        bool right = _heldKeys.Contains(_bindings.SteerRight);
+
+        float throttle = up ? 1f : (down ? -1f : 0f);
+        float steer    = right ? 1f : (left ? -1f : 0f);
+
+        await SendDriveAsync(throttle);
+        await SendSteerAsync(steer);
+    }
+
+    private void EnsureCommandLoop()
+    {
+        if (_commandTimer is not null) return;
+        _commandTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(50)); // 20 Hz
+        _commandLoopTask = RunCommandLoop();
+    }
+
+    private async Task RunCommandLoop()
+    {
+        while (_commandTimer is not null && await _commandTimer.WaitForNextTickAsync())
+        {
+            if (!BluetoothService.IsConnected) continue;
+            await ApplyKeyState();
+        }
+    }
+
+    private void StopCommandLoop()
+    {
+        _commandTimer?.Dispose();
+        _commandTimer = null;
+    }
+
+    private void StopAllMotors()
+    {
+        _heldKeys.Clear();
+        StopCommandLoop();
+        if (!BluetoothService.IsConnected) return;
+        InvokeAsync(async () =>
+        {
+            foreach (var m in _motors.Where(m => m.Role != MotorRole.Steering))
+            {
+                _requestedSpeeds[m.PortId] = 0;
+                await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(m.PortId, 0));
+                if (m.LinkedPortId is not null)
+                    await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(m.LinkedPortId, 0));
+            }
+        });
+    }
+
+    // ── Motor command helpers ──────────────────────────────────────────────────
+
+    private async Task SendDriveAsync(float throttle)
+    {
+        foreach (var motor in _motors.Where(m => m.Role is MotorRole.Drive or MotorRole.Auxiliary))
+        {
+            if (_motors.Any(m => m.LinkedPortId == motor.PortId)) continue; // skip followers
+
+            float range = throttle >= 0 ? motor.MaxSpeed : motor.MaxSpeed;
+            int speed = (int)Math.Round(throttle * range);
+            if (speed != 0 && Math.Abs(speed) < motor.MinSpeed)
+                speed = motor.MinSpeed * Math.Sign(speed);
+
+            _requestedSpeeds[motor.PortId] = speed;
+
+            int actual = motor.InvertDirection ? -speed : speed;
+            await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(motor.PortId, actual));
+
+            if (motor.LinkedPortId is not null)
+            {
+                var linked = _motors.FirstOrDefault(m => m.PortId == motor.LinkedPortId);
+                if (linked is not null)
+                {
+                    int linkedRaw = motor.InvertLink ? -actual : actual;
+                    int linkedActual = linked.InvertDirection ? -linkedRaw : linkedRaw;
+                    _requestedSpeeds[linked.PortId] = linkedActual;
+                    await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(linked.PortId, linkedActual));
+                }
+            }
+        }
+        StateHasChanged();
+    }
+
+    private async Task SendSteerAsync(float axis)
+    {
+        foreach (var motor in _motors.Where(m => m.Role == MotorRole.Steering))
+        {
+            int degrees = axis >= 0
+                ? (int)Math.Round(axis * motor.SteeringMaxRight)
+                : (int)Math.Round(axis * Math.Abs(motor.SteeringMaxLeft));
+
+            _requestedPositions[motor.PortId] = degrees;
+            int actual = motor.InvertDirection ? -degrees : degrees;
+            await BluetoothService.SendCommandAsync(LegoCommandBuilder.GoToAbsolutePosition(motor.PortId, actual));
+        }
+        StateHasChanged();
+    }
+
+    // ── Customise dialog ───────────────────────────────────────────────────────
+
+    private void OpenCustomiseDialog()
+    {
+        _rebindingAction = null;
+        _showCustomise = true;
+    }
+
+    private async Task CloseCustomiseDialog()
+    {
+        _showCustomise = false;
+        _rebindingAction = null;
+        var json = System.Text.Json.JsonSerializer.Serialize(_bindings);
+        await JS.InvokeVoidAsync("localStorage.setItem", BindingsKey, json);
+    }
+
+    private void OnRebindKey(string actionId, KeyboardEventArgs e)
+    {
+        if (_rebindingAction != actionId) return;
+        var key = e.Code; // e.g. "ArrowUp", "KeyW"
+        switch (actionId)
+        {
+            case "throttleUp":   _bindings = _bindings with { ThrottleUp   = key }; break;
+            case "throttleDown": _bindings = _bindings with { ThrottleDown = key }; break;
+            case "steerLeft":    _bindings = _bindings with { SteerLeft    = key }; break;
+            case "steerRight":   _bindings = _bindings with { SteerRight   = key }; break;
+        }
+        _rebindingAction = null;
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        BluetoothService.ConnectionStateChanged -= OnConnectionStateChanged;
+        HubService.MotorSpeedChanged -= OnMotorFeedbackChanged;
+        HubService.MotorPositionChanged -= OnMotorFeedbackChanged;
+        StopCommandLoop();
+        if (_commandLoopTask is not null)
+            await _commandLoopTask.ConfigureAwait(false);
+        if (BluetoothService.IsConnected)
+        {
+            foreach (var m in _motors.Where(m => m.Role != MotorRole.Steering))
+                await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(m.PortId, 0));
+        }
+        if (_jsModule is not null)
+            await _jsModule.DisposeAsync();
+    }
+
+    private record KeyBindings
+    {
+        public string ThrottleUp   { get; init; } = "ArrowUp";
+        public string ThrottleDown { get; init; } = "ArrowDown";
+        public string SteerLeft    { get; init; } = "ArrowLeft";
+        public string SteerRight   { get; init; } = "ArrowRight";
+    }
+}

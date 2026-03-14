@@ -41,3 +41,16 @@ export async function sendCommand(data) {
         await characteristic.writeValueWithoutResponse(new Uint8Array(data));
     }
 }
+
+export function hasTouchSupport() {
+    return navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+}
+
+export function capturePointer(element, pointerId) {
+    element.setPointerCapture(pointerId);
+}
+
+export function getBoundingRect(element) {
+    const r = element.getBoundingClientRect();
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+}

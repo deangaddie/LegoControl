@@ -1,0 +1,84 @@
+@using LegoControl.Core.Models
+@using LegoControl.Core.Services
+
+@if (Motors.Count > 0)
+{
+    <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; @Style">
+        @foreach (var motor in Motors)
+        {
+            if (motor.Role == MotorRole.Drive || motor.Role == MotorRole.Auxiliary)
+            {
+                var requested = RequestedSpeeds.GetValueOrDefault(motor.PortId);
+                var actual = HubService.MotorSpeeds.GetValueOrDefault(motor.PortId);
+                var diverging = requested != 0 && Math.Abs(actual - requested) > 8;
+
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 44px;">
+                    <div style="font-size: 10px; opacity: 0.7; text-align: center;">@motor.Label</div>
+                    <div style="position: relative; width: 28px; height: 64px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                        @{
+                            // Requested bar (yellow) — centred, extends up or down
+                            var reqPct = Math.Abs(requested) / 100.0 * 50.0;
+                            var reqTop = requested >= 0 ? 50.0 - reqPct : 50.0;
+                            // Actual bar (green or warning colour)
+                            var actPct = Math.Abs(actual) / 100.0 * 50.0;
+                            var actTop = actual >= 0 ? 50.0 - actPct : 50.0;
+                            var actColor = diverging ? "#ef5350" : "#66bb6a";
+                        }
+                        <!-- Centre line -->
+                        <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(255,255,255,0.2);"></div>
+                        <!-- Requested -->
+                        <div style="position:absolute;left:2px;width:12px;top:@(reqTop.ToString("F1", CultureInfo.InvariantCulture))%;height:@(reqPct.ToString("F1", CultureInfo.InvariantCulture))%;background:#ffd54f;border-radius:2px;opacity:0.9;"></div>
+                        <!-- Actual -->
+                        <div style="position:absolute;right:2px;width:12px;top:@(actTop.ToString("F1", CultureInfo.InvariantCulture))%;height:@(actPct.ToString("F1", CultureInfo.InvariantCulture))%;background:@actColor;border-radius:2px;opacity:0.9;"></div>
+                    </div>
+                    <div style="font-size: 9px; opacity: 0.6; text-align: center;">
+                        <span style="color:#ffd54f;">@requested%</span>
+                        <span style="margin: 0 2px;">|</span>
+                        <span style="color:@(diverging ? "#ef5350" : "#66bb6a");">@actual%</span>
+                    </div>
+                </div>
+            }
+            else if (motor.Role == MotorRole.Steering)
+            {
+                var requested = RequestedPositions.GetValueOrDefault(motor.PortId);
+                var actual = HubService.MotorPositions.GetValueOrDefault(motor.PortId);
+                var range = Math.Max(Math.Abs(motor.SteeringMaxLeft), motor.SteeringMaxRight);
+                if (range == 0) range = 90;
+                var diverging = Math.Abs(actual - requested) > 5;
+
+                var reqPct = (requested / (double)range) * 50.0 + 50.0; // 0-100% of bar width
+                var actPct = (actual / (double)range) * 50.0 + 50.0;
+                reqPct = Math.Clamp(reqPct, 0, 100);
+                actPct = Math.Clamp(actPct, 0, 100);
+                var actColor = diverging ? "#ef5350" : "#66bb6a";
+
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 80px; width: 100%;">
+                    <div style="font-size: 10px; opacity: 0.7; text-align: center;">@motor.Label</div>
+                    <div style="position: relative; width: 100%; height: 32px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                        <!-- Centre line -->
+                        <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.2);"></div>
+                        <!-- Requested marker -->
+                        <div style="position:absolute;top:2px;height:12px;left:@(reqPct.ToString("F1", CultureInfo.InvariantCulture))%;width:3px;background:#ffd54f;border-radius:2px;transform:translateX(-50%);opacity:0.9;"></div>
+                        <!-- Actual marker -->
+                        <div style="position:absolute;bottom:2px;height:12px;left:@(actPct.ToString("F1", CultureInfo.InvariantCulture))%;width:3px;background:@actColor;border-radius:2px;transform:translateX(-50%);opacity:0.9;"></div>
+                    </div>
+                    <div style="font-size: 9px; opacity: 0.6; display: flex; justify-content: space-between; width: 100%; padding: 0 4px; box-sizing: border-box;">
+                        <span>L</span>
+                        <span style="color:#ffd54f;">@requested°</span>
+                        <span>|</span>
+                        <span style="color:@actColor;">@actual°</span>
+                        <span>R</span>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<MotorConfig> Motors { get; set; } = [];
+    [Parameter, EditorRequired] public ILegoHubService HubService { get; set; } = default!;
+    [Parameter] public Dictionary<string, int> RequestedSpeeds { get; set; } = [];
+    [Parameter] public Dictionary<string, int> RequestedPositions { get; set; } = [];
+    [Parameter] public string Style { get; set; } = "";
+}
