@@ -1,0 +1,334 @@
+@page "/devices/program/{Id:guid}"
+@inject IDeviceService DeviceService
+@inject ILegoModelService ModelService
+@inject IBluetoothService BluetoothService
+@inject ILegoHubService HubService
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Program — @(_device?.Name ?? "Device")</PageTitle>
+
+@if (_device is null)
+{
+    <MudAlert Severity="Severity.Error">Device not found.</MudAlert>
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="@(() => Nav.NavigateTo($"/devices/play/{Id}"))" />
+            <div>
+                <MudText Typo="Typo.h5">@_device.Name</MudText>
+                @if (_model is not null)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@_model.Name (#@_model.SetNumber)</MudText>
+                }
+            </div>
+        </MudStack>
+        <BluetoothConnectButton />
+    </MudStack>
+
+    <!-- Toolbar -->
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2" Wrap="Wrap.Wrap">
+        <MudButton Variant="Variant.Filled" Color="Color.Success"
+                   StartIcon="@Icons.Material.Filled.PlayArrow"
+                   Disabled="@(_running || !BluetoothService.IsConnected)"
+                   OnClick="RunProgramAsync">Run</MudButton>
+
+        <MudButton Variant="Variant.Filled" Color="Color.Error"
+                   StartIcon="@Icons.Material.Filled.Stop"
+                   Disabled="@(!_running)"
+                   OnClick="StopProgram">Stop</MudButton>
+
+        <MudDivider Vertical="true" FlexItem="true" />
+
+        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Save"
+                   Disabled="@_running"
+                   OnClick="SaveProgramAsync">Save</MudButton>
+
+        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.FolderOpen"
+                   Disabled="@_running"
+                   OnClick="LoadProgramAsync">Load</MudButton>
+
+        <MudButton Variant="Variant.Text" Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.DeleteSweep"
+                   Disabled="@_running"
+                   OnClick="ClearProgramAsync">Clear</MudButton>
+
+        @if (!BluetoothService.IsConnected)
+        {
+            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.BluetoothDisabled">
+                Connect Bluetooth to run
+            </MudChip>
+        }
+    </MudStack>
+
+    <!-- Status bar -->
+    @if (_status is not null)
+    {
+        <MudAlert Severity="@(_running ? Severity.Info : (_statusIsError ? Severity.Error : Severity.Success))"
+                  Dense="true" Class="mb-2">
+            @if (_running)
+            {
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    <MudText>@_status</MudText>
+                </MudStack>
+            }
+            else
+            {
+                <MudText>@_status</MudText>
+            }
+        </MudAlert>
+    }
+
+    <!-- Blockly workspace -->
+    <div id="blockly-container"
+         style="width: 100%; height: calc(100vh - 260px); min-height: 400px; border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; background: #1e1e1e;">
+    </div>
+
+    <!-- Motor feedback -->
+    @if (_motors.Count > 0)
+    {
+        <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1">Motor Feedback</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Yellow = requested &nbsp;|&nbsp; Green/Red = actual</MudText>
+        <MotorFeedbackPanel Motors="_motors"
+                            HubService="HubService"
+                            RequestedSpeeds="_requestedSpeeds"
+                            RequestedPositions="_requestedPositions" />
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Device? _device;
+    private LegoModel? _model;
+    private List<MotorConfig> _motors = [];
+    private List<SensorConfig> _sensors = [];
+
+    private IJSObjectReference? _jsModule;
+    private bool _workspaceReady = false;
+
+    private bool _running = false;
+    private bool _statusIsError = false;
+    private string? _status = null;
+    private CancellationTokenSource? _cts;
+
+    private readonly Dictionary<string, int> _requestedSpeeds = new();
+    private readonly Dictionary<string, int> _requestedPositions = new();
+
+    private string ProgramStorageKey => $"lc_program_{Id}";
+    private string WorkspaceStateKey => $"lc_workspace_{Id}";
+
+    protected override void OnParametersSet()
+    {
+        _device = DeviceService.Devices.FirstOrDefault(d => d.Id == Id);
+        if (_device is null) return;
+
+        _model = ModelService.Models.FirstOrDefault(m => m.Id == _device.ModelId);
+        _motors = _device.Config.Motors.Select(m => new MotorConfig
+        {
+            PortId = m.PortId, Label = m.Label, Role = m.Role,
+            InvertDirection = m.InvertDirection, LinkedPortId = m.LinkedPortId, InvertLink = m.InvertLink,
+            MinSpeed = m.MinSpeed, MaxSpeed = m.MaxSpeed,
+            SteeringMaxLeft = m.SteeringMaxLeft, SteeringMaxRight = m.SteeringMaxRight,
+        }).ToList();
+        _sensors = _device.Config.Sensors.Select(s => new SensorConfig
+        {
+            PortId = s.PortId, Label = s.Label, Mode = s.Mode
+        }).ToList();
+
+        foreach (var m in _motors)
+        {
+            _requestedSpeeds.TryAdd(m.PortId, 0);
+            _requestedPositions.TryAdd(m.PortId, 0);
+        }
+
+        BluetoothService.ConnectionStateChanged += OnConnectionStateChanged;
+        HubService.MotorSpeedChanged += OnMotorFeedbackChanged;
+        HubService.MotorPositionChanged += OnMotorFeedbackChanged;
+        HubService.SensorValueChanged += OnMotorFeedbackChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _device is null) return;
+
+        _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/blockly-interop.js");
+
+        var motorDefs = _motors.Select(m => new { portId = m.PortId, label = m.Label, role = m.Role.ToString() }).ToArray();
+        var sensorDefs = _sensors.Select(s => new { portId = s.PortId, label = s.Label, mode = s.Mode.ToString() }).ToArray();
+        await _jsModule.InvokeVoidAsync("initWorkspace", "blockly-container", motorDefs, sensorDefs);
+        _workspaceReady = true;
+
+        // Restore saved workspace state if it exists
+        var saved = await JS.InvokeAsync<string?>("localStorage.getItem", WorkspaceStateKey);
+        if (saved is not null)
+        {
+            try { await _jsModule.InvokeVoidAsync("setWorkspaceState", saved); }
+            catch { /* ignore bad saved state */ }
+        }
+    }
+
+    private void OnConnectionStateChanged() => InvokeAsync(async () =>
+    {
+        StateHasChanged();
+        if (BluetoothService.IsConnected)
+        {
+            foreach (var m in _motors)
+            {
+                if (m.Role == MotorRole.Steering)
+                    await HubService.SubscribeMotorPositionAsync(m.PortId);
+                else
+                    await HubService.SubscribeMotorSpeedAsync(m.PortId);
+            }
+            foreach (var s in _sensors)
+                await HubService.SubscribeSensorAsync(s.PortId, s.Mode);
+        }
+    });
+
+    private void OnMotorFeedbackChanged(string _, int __) => InvokeAsync(StateHasChanged);
+
+    private async Task RunProgramAsync()
+    {
+        if (_jsModule is null || !BluetoothService.IsConnected) return;
+
+        string json;
+        try { json = await _jsModule.InvokeAsync<string>("getProgram"); }
+        catch { _status = "Failed to read program from workspace."; _statusIsError = true; return; }
+
+        IReadOnlyList<LegoControl.Core.Models.ProgramNode> nodes;
+        try { nodes = ProgramAstSerializer.Deserialize(json); }
+        catch (Exception ex) { _status = $"Program parse error: {ex.Message}"; _statusIsError = true; return; }
+
+        if (nodes.Count == 0)
+        {
+            _status = "The workspace is empty — add some blocks first.";
+            _statusIsError = true;
+            return;
+        }
+
+        _cts = new CancellationTokenSource();
+        _running = true;
+        _statusIsError = false;
+        _status = "Running…";
+        StateHasChanged();
+
+        var interpreter = new ProgramInterpreter(BluetoothService, HubService, _motors);
+
+        try
+        {
+            await interpreter.RunAsync(nodes, new Progress<string>(msg =>
+            {
+                _status = msg;
+                InvokeAsync(StateHasChanged);
+            }), _cts.Token);
+
+            _status = "Program complete.";
+            _statusIsError = false;
+        }
+        catch (OperationCanceledException)
+        {
+            _status = "Stopped.";
+            _statusIsError = false;
+            await interpreter.StopAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _status = $"Error: {ex.Message}";
+            _statusIsError = true;
+        }
+        finally
+        {
+            _running = false;
+            _cts?.Dispose();
+            _cts = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void StopProgram() => _cts?.Cancel();
+
+    private async Task SaveProgramAsync()
+    {
+        if (_jsModule is null) return;
+        var state = await _jsModule.InvokeAsync<string>("getWorkspaceState");
+        await JS.InvokeVoidAsync("localStorage.setItem", WorkspaceStateKey, state);
+        _status = "Program saved.";
+        _statusIsError = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadProgramAsync()
+    {
+        if (_jsModule is null) return;
+        var saved = await JS.InvokeAsync<string?>("localStorage.getItem", WorkspaceStateKey);
+        if (saved is null)
+        {
+            _status = "No saved program found.";
+            _statusIsError = true;
+        }
+        else
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("setWorkspaceState", saved);
+                _status = "Program loaded.";
+                _statusIsError = false;
+            }
+            catch
+            {
+                _status = "Failed to load saved program.";
+                _statusIsError = true;
+            }
+        }
+        StateHasChanged();
+    }
+
+    private async Task ClearProgramAsync()
+    {
+        if (_jsModule is null) return;
+        await _jsModule.InvokeVoidAsync("clearWorkspace");
+        _status = null;
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        BluetoothService.ConnectionStateChanged -= OnConnectionStateChanged;
+        HubService.MotorSpeedChanged -= OnMotorFeedbackChanged;
+        HubService.MotorPositionChanged -= OnMotorFeedbackChanged;
+        HubService.SensorValueChanged -= OnMotorFeedbackChanged;
+
+        _cts?.Cancel();
+
+        if (BluetoothService.IsConnected)
+        {
+            var interpreter = new ProgramInterpreter(BluetoothService, HubService, _motors);
+            try { await interpreter.StopAllAsync(); } catch { /* best effort */ }
+        }
+
+        if (_jsModule is not null)
+        {
+            if (_workspaceReady)
+            {
+                try
+                {
+                    // Auto-save workspace state on navigate away
+                    var state = await _jsModule.InvokeAsync<string>("getWorkspaceState");
+                    await JS.InvokeVoidAsync("localStorage.setItem", WorkspaceStateKey, state);
+                    await _jsModule.InvokeVoidAsync("disposeWorkspace");
+                }
+                catch { /* best effort */ }
+            }
+            await _jsModule.DisposeAsync();
+        }
+
+        _cts?.Dispose();
+    }
+}

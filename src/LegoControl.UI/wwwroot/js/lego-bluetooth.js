@@ -54,3 +54,33 @@ export function getBoundingRect(element) {
     const r = element.getBoundingClientRect();
     return { left: r.left, top: r.top, width: r.width, height: r.height };
 }
+
+export function hasGamepadSupport() {
+    return 'getGamepads' in navigator;
+}
+
+export function pollGamepad() {
+    for (const gp of navigator.getGamepads()) {
+        if (gp) return {
+            id: gp.id,
+            axes: Array.from(gp.axes),
+            buttons: gp.buttons.map(b => ({ pressed: b.pressed, value: b.value }))
+        };
+    }
+    return null;
+}
+
+let _gpConnHandler = null, _gpDiscHandler = null;
+
+export function listenForGamepad(dotNetCallback) {
+    _gpConnHandler = e => dotNetCallback.invokeMethodAsync('OnGamepadConnected', e.gamepad.index);
+    _gpDiscHandler = () => dotNetCallback.invokeMethodAsync('OnGamepadDisconnected');
+    window.addEventListener('gamepadconnected', _gpConnHandler);
+    window.addEventListener('gamepaddisconnected', _gpDiscHandler);
+}
+
+export function unlistenGamepad() {
+    if (_gpConnHandler) window.removeEventListener('gamepadconnected', _gpConnHandler);
+    if (_gpDiscHandler) window.removeEventListener('gamepaddisconnected', _gpDiscHandler);
+    _gpConnHandler = _gpDiscHandler = null;
+}

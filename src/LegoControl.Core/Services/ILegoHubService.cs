@@ -1,3 +1,5 @@
+using LegoControl.Core.Models;
+
 namespace LegoControl.Core.Services;
 
 public record SteeringHomingResult(
@@ -42,4 +44,16 @@ public interface ILegoHubService
     /// Returns measured extents (relative to the new zero centre).
     /// </summary>
     Task<SteeringHomingResult> RunSteeringHomingAsync(string portId, CancellationToken ct = default);
+
+    /// <summary>Last known sensor values keyed by port ID. Semantics depend on the subscribed mode.</summary>
+    IReadOnlyDictionary<string, int> SensorValues { get; }
+
+    /// <summary>Fired whenever a sensor value notification arrives from the hub.</summary>
+    event Action<string, int>? SensorValueChanged;
+
+    /// <summary>
+    /// Sends a subscription command so the hub sends sensor value updates for the given port.
+    /// Call once per session after connecting.
+    /// </summary>
+    Task SubscribeSensorAsync(string portId, SensorMode mode);
 }

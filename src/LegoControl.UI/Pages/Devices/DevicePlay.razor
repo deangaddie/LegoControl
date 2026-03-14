@@ -63,6 +63,35 @@ else
                     </MudCardContent>
                 </MudCard>
             </MudItem>
+            @if (_hasGamepad)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudCard Class="pa-2" Style="cursor: pointer;" @onclick="EnterGamepadMode">
+                        <MudCardContent>
+                            <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@Icons.Material.Filled.SportsEsports" Style="font-size: 3rem;" Color="Color.Tertiary" />
+                                <MudText Typo="Typo.h6">Gamepad</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                                    USB or Bluetooth controller. Pair via OS Bluetooth settings first.
+                                </MudText>
+                            </MudStack>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+            <MudItem xs="12" sm="6">
+                <MudCard Class="pa-2" Style="cursor: pointer;" @onclick="@(() => Nav.NavigateTo($"/devices/program/{Id}"))">
+                    <MudCardContent>
+                        <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.Code" Style="font-size: 3rem;" Color="Color.Info" />
+                            <MudText Typo="Typo.h6">Visual Program</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                                Build a sequence of motor commands with drag-and-drop blocks.
+                            </MudText>
+                        </MudStack>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
         </MudGrid>
     }
     else if (_mode == ControlMode.Keyboard)
@@ -126,6 +155,62 @@ else
                             RequestedSpeeds="_requestedSpeeds"
                             RequestedPositions="_requestedPositions" />
     }
+    else if (_mode == ControlMode.Gamepad)
+    {
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small"
+                               OnClick="LeaveGamepadMode" />
+                <MudText Typo="Typo.h6">Gamepad</MudText>
+            </MudStack>
+            <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Settings"
+                       OnClick="@(() => Nav.NavigateTo($"/devices/play/{Id}/gamepad-config"))">Configure</MudButton>
+        </MudStack>
+
+        @if (!BluetoothService.IsConnected)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-3">Connect via Bluetooth to send commands.</MudAlert>
+        }
+
+        @if (!_gamepadActive)
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-3">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    <MudText>Waiting for controller — press any button to activate.</MudText>
+                </MudStack>
+            </MudAlert>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                If using Bluetooth, pair the controller in your OS Bluetooth settings first, then press any button on it.
+            </MudText>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-3">Controller active.</MudAlert>
+
+            <!-- Binding summary -->
+            <MudPaper Elevation="1" Class="pa-4 mb-4" Style="max-width: 400px;">
+                <MudText Typo="Typo.subtitle2" Class="mb-3">Active Bindings</MudText>
+                <MudGrid Spacing="1">
+                    <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Throttle</MudText></MudItem>
+                    <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Axis @_gamepadBindings.ThrottleAxis @(_gamepadBindings.InvertThrottle ? "(inverted)" : "")</MudChip></MudItem>
+                    <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Steer</MudText></MudItem>
+                    <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Axis @_gamepadBindings.SteerAxis @(_gamepadBindings.InvertSteer ? "(inverted)" : "")</MudChip></MudItem>
+                    <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Dead zone</MudText></MudItem>
+                    <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@(_gamepadBindings.DeadZone.ToString("P0", CultureInfo.InvariantCulture))</MudChip></MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- Motor feedback -->
+            <MudText Typo="Typo.subtitle2" Class="mt-2 mb-2">Motor Feedback</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Yellow = requested &nbsp;|&nbsp; Green/Red = actual</MudText>
+            <MotorFeedbackPanel Motors="_motors"
+                                HubService="HubService"
+                                RequestedSpeeds="_requestedSpeeds"
+                                RequestedPositions="_requestedPositions" />
+        }
+    }
 }
 
 <!-- Customise key bindings dialog -->
@@ -157,7 +242,7 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
-    private enum ControlMode { Select, Keyboard }
+    private enum ControlMode { Select, Keyboard, Gamepad }
 
     private Device? _device;
     private LegoModel? _model;
@@ -173,7 +258,7 @@ else
     private readonly Dictionary<string, int> _requestedPositions = new();
     private readonly HashSet<string> _heldKeys = new();
 
-    // Command throttle timer
+    // Keyboard command timer
     private PeriodicTimer? _commandTimer;
     private Task? _commandLoopTask;
 
@@ -194,15 +279,35 @@ else
         new("steerRight",   "Steer right",        b => b.SteerRight),
     ];
 
+    // ── Gamepad ────────────────────────────────────────────────────────────────
+    private bool _hasGamepad = false;
+    private bool _gamepadActive = false;
+    private GamepadBindings _gamepadBindings = new();
+    private const string GamepadBindingsKey = "lc_gamepadbindings";
+    private DotNetObjectReference<DevicePlay>? _gamepadDotNetRef;
+    private PeriodicTimer? _gamepadTimer;
+    private Task? _gamepadLoopTask;
+
+    private record GpButton(bool Pressed, double Value);
+    private record GpSnapshot(string Id, double[] Axes, GpButton[] Buttons);
+
     protected override async Task OnInitializedAsync()
     {
         _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/lego-bluetooth.js");
         _hasTouch = await _jsModule.InvokeAsync<bool>("hasTouchSupport");
+        _hasGamepad = await _jsModule.InvokeAsync<bool>("hasGamepadSupport");
 
         var stored = await JS.InvokeAsync<string?>("localStorage.getItem", BindingsKey);
         if (stored is not null)
         {
             try { _bindings = System.Text.Json.JsonSerializer.Deserialize<KeyBindings>(stored) ?? new(); }
+            catch { /* use defaults */ }
+        }
+
+        var storedGp = await JS.InvokeAsync<string?>("localStorage.getItem", GamepadBindingsKey);
+        if (storedGp is not null)
+        {
+            try { _gamepadBindings = System.Text.Json.JsonSerializer.Deserialize<GamepadBindings>(storedGp) ?? new(); }
             catch { /* use defaults */ }
         }
     }
@@ -320,6 +425,87 @@ else
         _commandTimer = null;
     }
 
+    // ── Gamepad handling ───────────────────────────────────────────────────────
+
+    private async Task EnterGamepadMode()
+    {
+        _mode = ControlMode.Gamepad;
+        _gamepadActive = false;
+        _gamepadDotNetRef = DotNetObjectReference.Create(this);
+        await _jsModule!.InvokeVoidAsync("listenForGamepad", _gamepadDotNetRef);
+    }
+
+    private async Task LeaveGamepadMode()
+    {
+        _mode = ControlMode.Select;
+        StopGamepadLoop();
+        StopAllMotors();
+        if (_jsModule is not null)
+            await _jsModule.InvokeVoidAsync("unlistenGamepad");
+        _gamepadDotNetRef?.Dispose();
+        _gamepadDotNetRef = null;
+        _gamepadActive = false;
+    }
+
+    [JSInvokable]
+    public void OnGamepadConnected(int index)
+    {
+        _gamepadActive = true;
+        EnsureGamepadLoop();
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnGamepadDisconnected()
+    {
+        _gamepadActive = false;
+        StopGamepadLoop();
+        StopAllMotors();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void EnsureGamepadLoop()
+    {
+        if (_gamepadTimer is not null) return;
+        _gamepadTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(50)); // 20 Hz
+        _gamepadLoopTask = RunGamepadLoop();
+    }
+
+    private async Task RunGamepadLoop()
+    {
+        while (_gamepadTimer is not null && await _gamepadTimer.WaitForNextTickAsync())
+        {
+            if (!BluetoothService.IsConnected || !_gamepadActive) continue;
+            var snapshot = await _jsModule!.InvokeAsync<GpSnapshot?>("pollGamepad");
+            if (snapshot is null) continue;
+
+            double rawThrottle = snapshot.Axes.Length > _gamepadBindings.ThrottleAxis
+                ? snapshot.Axes[_gamepadBindings.ThrottleAxis] : 0.0;
+            double rawSteer = snapshot.Axes.Length > _gamepadBindings.SteerAxis
+                ? snapshot.Axes[_gamepadBindings.SteerAxis] : 0.0;
+
+            float throttle = ApplyDeadZone((float)rawThrottle, _gamepadBindings.DeadZone);
+            float steer    = ApplyDeadZone((float)rawSteer,    _gamepadBindings.DeadZone);
+
+            if (_gamepadBindings.InvertThrottle) throttle = -throttle;
+            if (_gamepadBindings.InvertSteer)    steer    = -steer;
+
+            await SendDriveAsync(throttle);
+            await SendSteerAsync(steer);
+        }
+    }
+
+    private void StopGamepadLoop()
+    {
+        _gamepadTimer?.Dispose();
+        _gamepadTimer = null;
+    }
+
+    private static float ApplyDeadZone(float value, float deadZone)
+        => Math.Abs(value) < deadZone ? 0f : value;
+
+    // ── Shared motor stop ──────────────────────────────────────────────────────
+
     private void StopAllMotors()
     {
         _heldKeys.Clear();
@@ -424,6 +610,12 @@ else
         StopCommandLoop();
         if (_commandLoopTask is not null)
             await _commandLoopTask.ConfigureAwait(false);
+        StopGamepadLoop();
+        if (_gamepadLoopTask is not null)
+            await _gamepadLoopTask.ConfigureAwait(false);
+        if (_jsModule is not null)
+            await _jsModule.InvokeVoidAsync("unlistenGamepad");
+        _gamepadDotNetRef?.Dispose();
         if (BluetoothService.IsConnected)
         {
             foreach (var m in _motors.Where(m => m.Role != MotorRole.Steering))

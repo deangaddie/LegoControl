@@ -1,3 +1,5 @@
+using LegoControl.Core.Models;
+
 namespace LegoControl.Core.Services;
 
 public class LegoHubService : ILegoHubService
@@ -5,12 +7,17 @@ public class LegoHubService : ILegoHubService
     private readonly IBluetoothService _bt;
     private readonly Dictionary<string, int> _motorPositions = new();
     private readonly Dictionary<string, int> _motorSpeeds = new();
+    private readonly Dictionary<string, int> _sensorValues = new();
+    private readonly HashSet<string> _sensorPorts = new();
 
     public IReadOnlyDictionary<string, int> MotorPositions => _motorPositions;
     public event Action<string, int>? MotorPositionChanged;
 
     public IReadOnlyDictionary<string, int> MotorSpeeds => _motorSpeeds;
     public event Action<string, int>? MotorSpeedChanged;
+
+    public IReadOnlyDictionary<string, int> SensorValues => _sensorValues;
+    public event Action<string, int>? SensorValueChanged;
 
     public LegoHubService(IBluetoothService bt)
     {
@@ -23,6 +30,21 @@ public class LegoHubService : ILegoHubService
 
     public Task SubscribeMotorSpeedAsync(string portId)
         => _bt.SendCommandAsync(LegoCommandBuilder.SubscribeMotorSpeed(portId));
+
+    public Task SubscribeSensorAsync(string portId, SensorMode mode)
+    {
+        int lwpMode = mode switch
+        {
+            SensorMode.Color           => 0,
+            SensorMode.Distance        => 1,
+            SensorMode.Reflection      => 3,
+            SensorMode.AmbientLight    => 4,
+            SensorMode.ColorAndDistance => 0, // fall back to color for combined mode
+            _                          => 0
+        };
+        _sensorPorts.Add(portId);
+        return _bt.SendCommandAsync(LegoCommandBuilder.SubscribeSensor(portId, lwpMode));
+    }
 
     public async Task<SteeringHomingResult> RunSteeringHomingAsync(string portId, CancellationToken ct = default)
     {
@@ -104,10 +126,20 @@ public class LegoHubService : ILegoHubService
 
         if (bytes.Length == 5)
         {
-            // Speed notification (mode 1): single signed byte
-            int speed = (sbyte)bytes[4];
-            _motorSpeeds[portId] = speed;
-            MotorSpeedChanged?.Invoke(portId, speed);
+            if (_sensorPorts.Contains(portId))
+            {
+                // Sensor notification: single unsigned byte
+                int value = bytes[4];
+                _sensorValues[portId] = value;
+                SensorValueChanged?.Invoke(portId, value);
+            }
+            else
+            {
+                // Motor speed notification (mode 1): single signed byte
+                int speed = (sbyte)bytes[4];
+                _motorSpeeds[portId] = speed;
+                MotorSpeedChanged?.Invoke(portId, speed);
+            }
         }
         else if (bytes.Length >= 8)
         {

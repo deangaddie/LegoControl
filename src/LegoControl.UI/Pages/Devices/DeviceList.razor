@@ -46,6 +46,10 @@ else
                                 <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Color="Color.Success"
                                                OnClick="@(() => Nav.NavigateTo($"/devices/play/{d.Id}"))" />
                             </MudTooltip>
+                            <MudTooltip Text="Program">
+                                <MudIconButton Icon="@Icons.Material.Filled.Code" Color="Color.Info"
+                                               OnClick="@(() => Nav.NavigateTo($"/devices/program/{d.Id}"))" />
+                            </MudTooltip>
                             <MudTooltip Text="Configure">
                                 <MudIconButton Icon="@Icons.Material.Filled.Tune"
                                                OnClick="@(() => Nav.NavigateTo($"/devices/configure/{d.Id}"))" />

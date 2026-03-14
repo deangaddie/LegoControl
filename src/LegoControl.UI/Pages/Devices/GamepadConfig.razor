@@ -1,0 +1,303 @@
+@page "/devices/play/{Id:guid}/gamepad-config"
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@implements IAsyncDisposable
+
+<PageTitle>Gamepad Configuration</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                   OnClick="@(() => Nav.NavigateTo($"/devices/play/{Id}"))" />
+    <MudText Typo="Typo.h5">Gamepad Configuration</MudText>
+</MudStack>
+
+@if (_snapshot is null)
+{
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        No controller detected — press any button on your gamepad to activate it.
+    </MudAlert>
+    <MudText Typo="Typo.body2" Color="Color.Secondary">
+        If using Bluetooth, pair the controller in your OS Bluetooth settings first.
+    </MudText>
+}
+else
+{
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4">@_snapshot.Id</MudText>
+
+    <!-- Axes -->
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudText Typo="Typo.subtitle2" Class="mb-3">Axes</MudText>
+        @for (int i = 0; i < _snapshot.Axes.Length; i++)
+        {
+            var idx = i;
+            var value = _snapshot.Axes[idx];
+            var isThrottle = idx == _bindings.ThrottleAxis;
+            var isSteer = idx == _bindings.SteerAxis;
+            var isCandidate = idx == _candidateAxis;
+
+            var labelColor = isCandidate ? "color: var(--mud-palette-warning);"
+                           : isThrottle  ? "color: var(--mud-palette-primary);"
+                           : isSteer     ? "color: var(--mud-palette-secondary);"
+                           : "opacity: 0.7;";
+
+            var barColor = isCandidate ? "var(--mud-palette-warning)"
+                         : isThrottle  ? "var(--mud-palette-primary)"
+                         : isSteer     ? "var(--mud-palette-secondary)"
+                         : "rgba(255,255,255,0.3)";
+
+            // Bar: centre at 50%, extends toward value
+            var fillPct = Math.Abs(value) * 50.0;
+            var fillLeft = value >= 0 ? 50.0 : 50.0 - fillPct;
+
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                <div style="width: 56px; font-size: 12px; @labelColor flex-shrink: 0;">
+                    Axis @idx
+                    @if (isThrottle) { <MudIcon Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Style="vertical-align: middle;" /> }
+                    @if (isSteer)    { <MudIcon Icon="@Icons.Material.Filled.SwapHoriz"   Size="Size.Small" Style="vertical-align: middle;" /> }
+                </div>
+                <div style="flex: 1; position: relative; height: 16px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden;">
+                    <!-- Centre line -->
+                    <div style="position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.2);"></div>
+                    <!-- Fill bar -->
+                    <div style="position: absolute; top: 2px; bottom: 2px; border-radius: 3px;
+                                left: @(fillLeft.ToString("F1", CultureInfo.InvariantCulture))%;
+                                width: @(fillPct.ToString("F1", CultureInfo.InvariantCulture))%;
+                                background: @barColor; transition: left 0.05s, width 0.05s;"></div>
+                </div>
+                <div style="width: 40px; font-size: 11px; opacity: 0.7; text-align: right; flex-shrink: 0;">
+                    @value.ToString("F2", CultureInfo.InvariantCulture)
+                </div>
+            </div>
+        }
+    </MudPaper>
+
+    <!-- Buttons -->
+    <MudPaper Elevation="1" Class="pa-4 mb-4">
+        <MudText Typo="Typo.subtitle2" Class="mb-3">Buttons</MudText>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            @for (int i = 0; i < _snapshot.Buttons.Length; i++)
+            {
+                var idx = i;
+                var btn = _snapshot.Buttons[idx];
+                <MudChip T="string"
+                         Size="Size.Small"
+                         Variant="@(btn.Pressed ? Variant.Filled : Variant.Outlined)"
+                         Color="@(btn.Pressed ? Color.Primary : Color.Default)">@idx</MudChip>
+            }
+        </div>
+    </MudPaper>
+
+    <!-- Bindings -->
+    <MudPaper Elevation="1" Class="pa-4 mb-4" Style="max-width: 480px;">
+        <MudText Typo="Typo.subtitle2" Class="mb-3">Bindings</MudText>
+
+        <!-- Throttle -->
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudIcon Icon="@Icons.Material.Filled.ArrowUpward" Size="Size.Small" Color="Color.Primary" />
+                <MudText Typo="Typo.body2">Throttle</MudText>
+            </MudStack>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">Axis @_bindings.ThrottleAxis</MudChip>
+                @if (_listenTarget == AssignTarget.Throttle)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning"
+                               OnClick="@(() => CancelListen())">Move an axis… Cancel</MudButton>
+                }
+                else
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                               OnClick="@(() => StartListen(AssignTarget.Throttle))">Assign</MudButton>
+                }
+            </MudStack>
+        </MudStack>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Style="padding-left: 24px;">
+            <MudSwitch T="bool" Value="_bindings.InvertThrottle"
+                       ValueChanged="@(v => SetInvert(AssignTarget.Throttle, v))"
+                       Label="Invert" Color="Color.Primary" />
+        </MudStack>
+
+        <!-- Steer -->
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-1">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small" Color="Color.Secondary" />
+                <MudText Typo="Typo.body2">Steer</MudText>
+            </MudStack>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Secondary">Axis @_bindings.SteerAxis</MudChip>
+                @if (_listenTarget == AssignTarget.Steer)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning"
+                               OnClick="@(() => CancelListen())">Move an axis… Cancel</MudButton>
+                }
+                else
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                               OnClick="@(() => StartListen(AssignTarget.Steer))">Assign</MudButton>
+                }
+            </MudStack>
+        </MudStack>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3" Style="padding-left: 24px;">
+            <MudSwitch T="bool" Value="_bindings.InvertSteer"
+                       ValueChanged="@(v => SetInvert(AssignTarget.Steer, v))"
+                       Label="Invert" Color="Color.Secondary" />
+        </MudStack>
+
+        <!-- Dead zone -->
+        <MudDivider Class="mb-3" />
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-1">
+            <MudText Typo="Typo.body2">Dead zone</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">@(_bindings.DeadZone.ToString("P0", CultureInfo.InvariantCulture))</MudText>
+        </MudStack>
+        <MudSlider T="float" Min="0f" Max="0.30f" Step="0.01f"
+                   Value="_bindings.DeadZone"
+                   ValueChanged="SetDeadZone"
+                   Color="Color.Default" />
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            Axis movement below this threshold is ignored.
+        </MudText>
+    </MudPaper>
+}
+
+<MudButton Variant="Variant.Text"
+           StartIcon="@Icons.Material.Filled.ArrowBack"
+           OnClick="@(() => Nav.NavigateTo($"/devices/play/{Id}"))">Back to play</MudButton>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private IJSObjectReference? _jsModule;
+    private GamepadBindings _bindings = new();
+    private const string BindingsKey = "lc_gamepadbindings";
+
+    private record GpButton(bool Pressed, double Value);
+    private record GpSnapshot(string Id, double[] Axes, GpButton[] Buttons);
+    private GpSnapshot? _snapshot;
+
+    private PeriodicTimer? _pollTimer;
+    private Task? _pollTask;
+
+    private enum AssignTarget { None, Throttle, Steer }
+    private AssignTarget _listenTarget = AssignTarget.None;
+    private int? _candidateAxis = null;
+    private int _candidateConfirmCount = 0;
+    private const int ConfirmTicks = 2;
+    private const double AssignThreshold = 0.5;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/lego-bluetooth.js");
+
+        var stored = await JS.InvokeAsync<string?>("localStorage.getItem", BindingsKey);
+        if (stored is not null)
+        {
+            try { _bindings = System.Text.Json.JsonSerializer.Deserialize<GamepadBindings>(stored) ?? new(); }
+            catch { /* use defaults */ }
+        }
+
+        _pollTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
+        _pollTask = RunPollLoop();
+    }
+
+    private async Task RunPollLoop()
+    {
+        while (_pollTimer is not null && await _pollTimer.WaitForNextTickAsync())
+        {
+            if (_jsModule is null) continue;
+            _snapshot = await _jsModule.InvokeAsync<GpSnapshot?>("pollGamepad");
+            ProcessAssignListen();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ProcessAssignListen()
+    {
+        if (_listenTarget == AssignTarget.None || _snapshot is null) return;
+
+        int otherAxis = _listenTarget == AssignTarget.Throttle
+            ? _bindings.SteerAxis : _bindings.ThrottleAxis;
+
+        int? movedAxis = null;
+        for (int i = 0; i < _snapshot.Axes.Length; i++)
+        {
+            if (i == otherAxis) continue;
+            if (Math.Abs(_snapshot.Axes[i]) >= AssignThreshold)
+            {
+                movedAxis = i;
+                break;
+            }
+        }
+
+        if (movedAxis.HasValue)
+        {
+            if (movedAxis == _candidateAxis)
+            {
+                _candidateConfirmCount++;
+                if (_candidateConfirmCount >= ConfirmTicks)
+                {
+                    _bindings = _listenTarget == AssignTarget.Throttle
+                        ? _bindings with { ThrottleAxis = movedAxis.Value }
+                        : _bindings with { SteerAxis    = movedAxis.Value };
+                    _ = Save();
+                    _listenTarget = AssignTarget.None;
+                    _candidateAxis = null;
+                    _candidateConfirmCount = 0;
+                }
+            }
+            else
+            {
+                _candidateAxis = movedAxis;
+                _candidateConfirmCount = 1;
+            }
+        }
+        else
+        {
+            _candidateAxis = null;
+            _candidateConfirmCount = 0;
+        }
+    }
+
+    private void StartListen(AssignTarget target)
+    {
+        _listenTarget = target;
+        _candidateAxis = null;
+        _candidateConfirmCount = 0;
+    }
+
+    private void CancelListen()
+    {
+        _listenTarget = AssignTarget.None;
+        _candidateAxis = null;
+        _candidateConfirmCount = 0;
+    }
+
+    private async Task SetInvert(AssignTarget target, bool value)
+    {
+        _bindings = target == AssignTarget.Throttle
+            ? _bindings with { InvertThrottle = value }
+            : _bindings with { InvertSteer    = value };
+        await Save();
+    }
+
+    private async Task SetDeadZone(float value)
+    {
+        _bindings = _bindings with { DeadZone = value };
+        await Save();
+    }
+
+    private async Task Save()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(_bindings);
+        await JS.InvokeVoidAsync("localStorage.setItem", BindingsKey, json);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = null;
+        if (_pollTask is not null)
+            await _pollTask.ConfigureAwait(false);
+        if (_jsModule is not null)
+            await _jsModule.DisposeAsync();
+    }
+}

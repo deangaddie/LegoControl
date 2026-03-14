@@ -47,4 +47,13 @@ public static class LegoCommandBuilder
         return [0x0B, 0x00, 0x81, PortByte(portId), 0x11, 0x51, 0x02,
                 pos[0], pos[1], pos[2], pos[3]];
     }
+
+    // LWP Port Input Format Setup (Single): subscribe to sensor updates.
+    // Boost Color/Distance Sensor (88007) modes:
+    //   0 = COLOR  (color index 0-10, 1 byte)
+    //   1 = PROX   (proximity distance 0-10, 1 byte)
+    //   3 = REFLECT (reflection %, 1 byte)
+    //   4 = AMBIL  (ambient light %, 1 byte)
+    public static byte[] SubscribeSensor(string portId, int mode, int delta = 1)
+        => [0x0A, 0x00, 0x41, PortByte(portId), (byte)mode, (byte)delta, 0x00, 0x00, 0x00, 0x01];
 }
