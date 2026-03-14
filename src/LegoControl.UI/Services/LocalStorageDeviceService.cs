@@ -5,7 +5,7 @@ using Microsoft.JSInterop;
 
 namespace LegoControl.UI.Services;
 
-public class LocalStorageDeviceService(IJSRuntime js) : IDeviceService
+public class LocalStorageDeviceService(IJSRuntime js, ILegoModelService modelService) : IDeviceService
 {
     private const string StorageKey = "lc_devices";
     private List<Device> _devices = [];
@@ -16,24 +16,38 @@ public class LocalStorageDeviceService(IJSRuntime js) : IDeviceService
     {
         var json = await js.InvokeAsync<string?>("localStorage.getItem", StorageKey);
         if (json is not null)
-            _devices = JsonSerializer.Deserialize<List<Device>>(json) ?? [];
+        {
+            try
+            {
+                _devices = JsonSerializer.Deserialize<List<Device>>(json) ?? [];
+            }
+            catch
+            {
+                // Old data format incompatible (e.g. contained LegoSet enum); start fresh.
+                await js.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+            }
+        }
     }
 
     public async Task AddAsync(Device device)
     {
         if (device.Config.Motors.Count == 0)
-            device.Config = DeviceConfigFactory.CreateDefault(device.Set);
+        {
+            var model = modelService.Models.FirstOrDefault(m => m.Id == device.ModelId);
+            if (model is not null)
+                device.Config = DeepCopy(model.DefaultConfig);
+        }
         _devices.Add(device);
         await SaveAsync();
     }
 
-    public async Task UpdateAsync(Guid id, string name, LegoSet set)
+    public async Task UpdateAsync(Guid id, string name, string modelId)
     {
         var device = _devices.FirstOrDefault(d => d.Id == id);
         if (device is not null)
         {
             device.Name = name;
-            device.Set = set;
+            device.ModelId = modelId;
             await SaveAsync();
         }
     }
@@ -58,5 +72,11 @@ public class LocalStorageDeviceService(IJSRuntime js) : IDeviceService
     {
         var json = JsonSerializer.Serialize(_devices);
         await js.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
+    }
+
+    private static DeviceConfig DeepCopy(DeviceConfig config)
+    {
+        var json = JsonSerializer.Serialize(config);
+        return JsonSerializer.Deserialize<DeviceConfig>(json)!;
     }
 }

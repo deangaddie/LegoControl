@@ -1,0 +1,153 @@
+@page "/models"
+@inject ILegoModelService ModelService
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@using System.Text.Json
+@using System.Text.Json.Serialization
+
+<PageTitle>Lego Models</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <MudText Typo="Typo.h4">Lego Models</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Upload"
+               OnClick="@(() => Nav.NavigateTo("/models/add"))">
+        Add Model
+    </MudButton>
+</MudStack>
+
+@{
+    var builtIn = ModelService.Models.Where(m => m.IsBuiltIn).ToList();
+    var userAdded = ModelService.Models.Where(m => !m.IsBuiltIn).ToList();
+}
+
+<MudText Typo="Typo.h6" Class="mb-2">Built-in Models</MudText>
+<MudGrid Class="mb-6">
+    @foreach (var model in builtIn)
+    {
+        var m = model;
+        <MudItem xs="12" sm="6" md="4">
+            <MudCard>
+                <MudCardContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.h6">@m.Name</MudText>
+                        @if (m.IsEdited)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Edited</MudChip>
+                        }
+                    </MudStack>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">#@m.SetNumber</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        @m.DefaultConfig.Motors.Count motor(s), @m.DefaultConfig.Sensors.Count sensor(s)
+                    </MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    @if (_pendingRevertId == m.Id)
+                    {
+                        <MudText Typo="Typo.body2" Class="mr-2">Revert to original?</MudText>
+                        <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled"
+                                   OnClick="@(() => Revert(m.Id))">Yes</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Text"
+                                   OnClick="@(() => _pendingRevertId = null)">Cancel</MudButton>
+                    }
+                    else
+                    {
+                        <MudTooltip Text="Export JSON">
+                            <MudIconButton Icon="@Icons.Material.Filled.Download"
+                                           OnClick="@(() => ExportModel(m))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Edit">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           OnClick="@(() => Nav.NavigateTo($"/models/edit/{m.Id}"))" />
+                        </MudTooltip>
+                        @if (m.IsEdited)
+                        {
+                            <MudTooltip Text="Revert to original">
+                                <MudIconButton Icon="@Icons.Material.Filled.RestartAlt" Color="Color.Warning"
+                                               OnClick="@(() => _pendingRevertId = m.Id)" />
+                            </MudTooltip>
+                        }
+                    }
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+    }
+</MudGrid>
+
+<MudText Typo="Typo.h6" Class="mb-2">My Models</MudText>
+@if (!userAdded.Any())
+{
+    <MudAlert Severity="Severity.Info">
+        No custom models added yet. Click <strong>Add Model</strong> to upload a JSON model file.
+    </MudAlert>
+}
+else
+{
+    <MudGrid>
+        @foreach (var model in userAdded)
+        {
+            var m = model;
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6">@m.Name</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">#@m.SetNumber</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @m.DefaultConfig.Motors.Count motor(s), @m.DefaultConfig.Sensors.Count sensor(s)
+                        </MudText>
+                    </MudCardContent>
+                    <MudCardActions>
+                        @if (_pendingDeleteId == m.Id)
+                        {
+                            <MudText Typo="Typo.body2" Class="mr-2">Remove?</MudText>
+                            <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled"
+                                       OnClick="@(() => Delete(m.Id))">Yes</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Text"
+                                       OnClick="@(() => _pendingDeleteId = null)">Cancel</MudButton>
+                        }
+                        else
+                        {
+                            <MudTooltip Text="Export JSON">
+                                <MudIconButton Icon="@Icons.Material.Filled.Download"
+                                               OnClick="@(() => ExportModel(m))" />
+                            </MudTooltip>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           OnClick="@(() => Nav.NavigateTo($"/models/edit/{m.Id}"))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                           OnClick="@(() => _pendingDeleteId = m.Id)" />
+                        }
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private string? _pendingDeleteId;
+    private string? _pendingRevertId;
+
+    private static readonly JsonSerializerOptions ExportOptions = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    private async Task ExportModel(LegoModel model)
+    {
+        var json = JsonSerializer.Serialize(model, ExportOptions);
+        var filename = $"{model.Name.Replace(" ", "-").ToLower()}-{model.SetNumber}.json";
+        await JS.InvokeVoidAsync("downloadJson", filename, json);
+    }
+
+    private async Task Revert(string id)
+    {
+        await ModelService.RevertAsync(id);
+        _pendingRevertId = null;
+    }
+
+    private async Task Delete(string id)
+    {
+        await ModelService.RemoveAsync(id);
+        _pendingDeleteId = null;
+    }
+}

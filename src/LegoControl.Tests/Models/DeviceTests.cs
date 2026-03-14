@@ -9,8 +9,8 @@ public class DeviceTests
     public void Constructor_GeneratesUniqueId()
     {
         // Act
-        var device1 = new Device { Name = "Device 1", Set = LegoSet.Boost };
-        var device2 = new Device { Name = "Device 2", Set = LegoSet.AudiRSQetron };
+        var device1 = new Device { Name = "Device 1", ModelId = "boost-17101" };
+        var device2 = new Device { Name = "Device 2", ModelId = "audi-42160" };
 
         // Assert
         device1.Id.Should().NotBeEmpty();
@@ -22,7 +22,7 @@ public class DeviceTests
     public void Constructor_InitializesConfig()
     {
         // Act
-        var device = new Device { Name = "Test", Set = LegoSet.Boost };
+        var device = new Device { Name = "Test", ModelId = "boost-17101" };
 
         // Assert
         device.Config.Should().NotBeNull();
@@ -42,14 +42,14 @@ public class DeviceTests
         {
             Id = id,
             Name = "Test Device",
-            Set = LegoSet.Boost,
+            ModelId = "boost-17101",
             Config = config
         };
 
         // Assert
         device.Id.Should().Be(id);
         device.Name.Should().Be("Test Device");
-        device.Set.Should().Be(LegoSet.Boost);
+        device.ModelId.Should().Be("boost-17101");
         device.Config.Should().BeSameAs(config);
     }
 }

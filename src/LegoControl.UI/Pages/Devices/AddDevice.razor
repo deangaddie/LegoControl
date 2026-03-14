@@ -1,5 +1,6 @@
 @page "/devices/add"
 @inject IDeviceService DeviceService
+@inject ILegoModelService ModelService
 @inject NavigationManager Nav
 
 <PageTitle>Add Device</PageTitle>
@@ -10,9 +11,11 @@
     <MudTextField @bind-Value="_name" Label="Device Name" Variant="Variant.Outlined"
                   Placeholder="e.g. My Boost Set" />
 
-    <MudSelect @bind-Value="_set" Label="Lego Set" Variant="Variant.Outlined" T="LegoSet">
-        <MudSelectItem Value="LegoSet.Boost">Boost (#17101)</MudSelectItem>
-        <MudSelectItem Value="LegoSet.AudiRSQetron">Audi RS Q e-tron (#42160)</MudSelectItem>
+    <MudSelect @bind-Value="_modelId" Label="Lego Set" Variant="Variant.Outlined" T="string">
+        @foreach (var model in ModelService.Models)
+        {
+            <MudSelectItem Value="@model.Id">@model.Name (#@model.SetNumber)</MudSelectItem>
+        }
     </MudSelect>
 
     @if (_showError)
@@ -28,8 +31,13 @@
 
 @code {
     private string _name = string.Empty;
-    private LegoSet _set = LegoSet.Boost;
+    private string _modelId = string.Empty;
     private bool _showError;
+
+    protected override void OnInitialized()
+    {
+        _modelId = ModelService.Models.FirstOrDefault()?.Id ?? string.Empty;
+    }
 
     private async Task Save()
     {
@@ -39,7 +47,7 @@
             return;
         }
 
-        await DeviceService.AddAsync(new Device { Name = _name.Trim(), Set = _set });
+        await DeviceService.AddAsync(new Device { Name = _name.Trim(), ModelId = _modelId });
         Nav.NavigateTo("/devices");
     }
 }

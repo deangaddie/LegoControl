@@ -1,0 +1,19 @@
+{
+  "id": "audi-42160",
+  "name": "Audi RS Q e-tron",
+  "setNumber": "42160",
+  "connectionInstructions": [
+    "Ensure the Technic Hub has charged batteries.",
+    "Press the power button on the hub \u2014 the LED flashes white (pairing mode).",
+    "Click Connect above and select your device from the browser picker.",
+    "The LED turns green when connected."
+  ],
+  "defaultConfig": {
+    "motors": [
+      { "portId": "A", "label": "Rear Drive Motor",  "role": "Drive", "linkedPortId": "B", "invertLink": false },
+      { "portId": "B", "label": "Front Drive Motor", "role": "Drive" },
+      { "portId": "D", "label": "Steering Motor",    "role": "Steering" }
+    ],
+    "sensors": []
+  }
+}

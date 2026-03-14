@@ -1,5 +1,6 @@
 @page "/devices/edit/{Id:guid}"
 @inject IDeviceService DeviceService
+@inject ILegoModelService ModelService
 @inject NavigationManager Nav
 
 <PageTitle>Edit Device</PageTitle>
@@ -15,9 +16,11 @@ else
     <MudStack Style="max-width: 480px;" Spacing="4">
         <MudTextField @bind-Value="_name" Label="Device Name" Variant="Variant.Outlined" />
 
-        <MudSelect @bind-Value="_set" Label="Lego Set" Variant="Variant.Outlined" T="LegoSet">
-            <MudSelectItem Value="LegoSet.Boost">Boost (#17101)</MudSelectItem>
-            <MudSelectItem Value="LegoSet.AudiRSQetron">Audi RS Q e-tron (#42160)</MudSelectItem>
+        <MudSelect @bind-Value="_modelId" Label="Lego Set" Variant="Variant.Outlined" T="string">
+            @foreach (var model in ModelService.Models)
+            {
+                <MudSelectItem Value="@model.Id">@model.Name (#@model.SetNumber)</MudSelectItem>
+            }
         </MudSelect>
 
         @if (_showError)
@@ -30,6 +33,70 @@ else
             <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/devices"))">Cancel</MudButton>
         </MudStack>
     </MudStack>
+
+    @if (_device.Config.Motors.Count > 0)
+    {
+        <MudText Typo="Typo.h6" Class="mt-6 mb-2">Motors</MudText>
+        <MudGrid>
+            @foreach (var motor in _device.Config.Motors)
+            {
+                var linkedMotor = _device.Config.Motors.FirstOrDefault(m => m.PortId == motor.LinkedPortId);
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard>
+                        <MudCardContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Port @motor.PortId</MudText>
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@motor.Role</MudChip>
+                            </MudStack>
+                            <MudText Typo="Typo.body1" Class="mt-1"><strong>@motor.Label</strong></MudText>
+                            @if (motor.InvertDirection)
+                            {
+                                <MudChip T="string" Icon="@Icons.Material.Filled.SwapVert" Size="Size.Small"
+                                         Color="Color.Default" Class="mt-1">Inverted</MudChip>
+                            }
+                            @if (linkedMotor is not null)
+                            {
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mt-2">
+                                    <MudIcon Icon="@Icons.Material.Filled.Link" Size="Size.Small" Color="Color.Info" />
+                                    <MudText Typo="Typo.body2" Color="Color.Info">
+                                        Linked to Port @linkedMotor.PortId (@linkedMotor.Label)
+                                        @if (motor.InvertLink)
+                                        {
+                                            <span> — inverted</span>
+                                        }
+                                    </MudText>
+                                </MudStack>
+                            }
+                            @if (_device.Config.Motors.Any(m => m.LinkedPortId == motor.PortId))
+                            {
+                                <MudChip T="string" Icon="@Icons.Material.Filled.Link" Color="Color.Info"
+                                         Size="Size.Small" Class="mt-1">Follower</MudChip>
+                            }
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+
+    @if (_device.Config.Sensors.Count > 0)
+    {
+        <MudText Typo="Typo.h6" Class="mt-4 mb-2">Sensors</MudText>
+        <MudGrid>
+            @foreach (var sensor in _device.Config.Sensors)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard>
+                        <MudCardContent>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Port @sensor.PortId</MudText>
+                            <MudText Typo="Typo.body1" Class="mt-1"><strong>@sensor.Label</strong></MudText>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="mt-1">@sensor.Mode</MudChip>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
 }
 
 @code {
@@ -37,7 +104,7 @@ else
 
     private Device? _device;
     private string _name = string.Empty;
-    private LegoSet _set;
+    private string _modelId = string.Empty;
     private bool _showError;
 
     protected override void OnParametersSet()
@@ -46,7 +113,7 @@ else
         if (_device is not null)
         {
             _name = _device.Name;
-            _set = _device.Set;
+            _modelId = _device.ModelId;
         }
     }
 
@@ -58,7 +125,7 @@ else
             return;
         }
 
-        await DeviceService.UpdateAsync(Id, _name.Trim(), _set);
+        await DeviceService.UpdateAsync(Id, _name.Trim(), _modelId);
         Nav.NavigateTo("/devices");
     }
 }

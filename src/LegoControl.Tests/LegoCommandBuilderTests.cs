@@ -97,6 +97,26 @@ public class LegoCommandBuilderTests
     }
 
     [Theory]
+    [InlineData("A", new byte[] { 0x0A, 0x00, 0x41, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01 })]
+    [InlineData("B", new byte[] { 0x0A, 0x00, 0x41, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x01 })]
+    public void SubscribeMotorSpeed_ValidPort_ReturnsCorrectByteArray(string portId, byte[] expected)
+    {
+        // Act
+        var result = LegoCommandBuilder.SubscribeMotorSpeed(portId);
+
+        // Assert
+        result.Should().Equal(expected);
+    }
+
+    [Fact]
+    public void SubscribeMotorSpeed_InvalidPort_ThrowsArgumentException()
+    {
+        // Act & Assert
+        var action = () => LegoCommandBuilder.SubscribeMotorSpeed("X");
+        action.Should().Throw<ArgumentException>().WithMessage("Unknown port: X");
+    }
+
+    [Theory]
     [InlineData("A", new byte[] { 0x0A, 0x00, 0x41, 0x00, 0x02, 0x01, 0x00, 0x00, 0x00, 0x01 })]
     [InlineData("B", new byte[] { 0x0A, 0x00, 0x41, 0x01, 0x02, 0x01, 0x00, 0x00, 0x00, 0x01 })]
     public void SubscribeMotorPosition_ValidPort_ReturnsCorrectByteArray(string portId, byte[] expected)

@@ -6,6 +6,8 @@ public class MotorConfig
     public string Label { get; set; } = "";
     public MotorRole Role { get; set; } = MotorRole.Auxiliary;
     public bool InvertDirection { get; set; }
+    public string? LinkedPortId { get; set; }
+    public bool InvertLink { get; set; }
 
     // Drive / Auxiliary
     public int MinSpeed { get; set; } = 0;

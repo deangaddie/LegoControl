@@ -1,5 +1,6 @@
 @page "/devices"
 @inject IDeviceService DeviceService
+@inject ILegoModelService ModelService
 @inject NavigationManager Nav
 
 <PageTitle>Devices</PageTitle>
@@ -28,7 +29,7 @@ else
                 <MudCard>
                     <MudCardContent>
                         <MudText Typo="Typo.h6">@d.Name</MudText>
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">@SetLabel(d.Set)</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@ModelLabel(d.ModelId)</MudText>
                     </MudCardContent>
                     <MudCardActions>
                         @if (_pendingDeleteId == d.Id)
@@ -60,12 +61,11 @@ else
 @code {
     private Guid? _pendingDeleteId;
 
-    private static string SetLabel(LegoSet set) => set switch
+    private string ModelLabel(string modelId)
     {
-        LegoSet.Boost => "Boost (#17101)",
-        LegoSet.AudiRSQetron => "Audi RS Q e-tron (#42160)",
-        _ => set.ToString()
-    };
+        var m = ModelService.Models.FirstOrDefault(m => m.Id == modelId);
+        return m is not null ? $"{m.Name} (#{m.SetNumber})" : modelId;
+    }
 
     private async Task Delete(Guid id)
     {

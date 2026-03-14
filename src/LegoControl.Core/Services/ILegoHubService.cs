@@ -21,6 +21,18 @@ public interface ILegoHubService
     /// </summary>
     Task SubscribeMotorPositionAsync(string portId);
 
+    /// <summary>Last known motor speeds keyed by port ID (e.g. "A"). Range: -100 to 100.</summary>
+    IReadOnlyDictionary<string, int> MotorSpeeds { get; }
+
+    /// <summary>Fired whenever a motor speed notification arrives from the hub.</summary>
+    event Action<string, int>? MotorSpeedChanged;
+
+    /// <summary>
+    /// Sends a subscription command so the hub sends speed updates for the given port.
+    /// Call once per session after connecting.
+    /// </summary>
+    Task SubscribeMotorSpeedAsync(string portId);
+
     /// <summary>
     /// Runs a full steering homing sequence:
     /// 1. Sweep left until stall → record left extent

@@ -1,0 +1,99 @@
+@page "/models/add"
+@inject ILegoModelService ModelService
+@inject NavigationManager Nav
+@using System.Text.Json
+@using System.Text.Json.Serialization
+
+<PageTitle>Add Model</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Add Model</MudText>
+
+<MudStack Style="max-width: 520px;" Spacing="4">
+    <MudAlert Severity="Severity.Info">
+        Upload a <code>.json</code> file defining a Lego model. The file should specify the model name,
+        set number, connection instructions, and default motor/sensor configuration.
+    </MudAlert>
+
+    <InputFile OnChange="OnFileSelected" accept=".json" />
+
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error">@_error</MudAlert>
+    }
+
+    @if (_preview is not null)
+    {
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">@_preview.Name</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">#@_preview.SetNumber</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @_preview.DefaultConfig.Motors.Count motor(s), @_preview.DefaultConfig.Sensors.Count sensor(s)
+                </MudText>
+            </MudCardContent>
+        </MudCard>
+
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Add Model</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/models"))">Cancel</MudButton>
+        </MudStack>
+    }
+    else
+    {
+        <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/models"))">Cancel</MudButton>
+    }
+</MudStack>
+
+@code {
+    private LegoModel? _preview;
+    private string? _error;
+
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _preview = null;
+        _error = null;
+
+        var file = e.File;
+        if (file is null) return;
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 1024 * 1024);
+            var model = await JsonSerializer.DeserializeAsync<LegoModel>(stream, Options);
+
+            if (model is null || string.IsNullOrWhiteSpace(model.Name))
+            {
+                _error = "Invalid model file: name is required.";
+                return;
+            }
+
+            if (model.DefaultConfig.Motors.Count == 0)
+            {
+                _error = "Invalid model file: at least one motor is required.";
+                return;
+            }
+
+            _preview = model;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not parse file: {ex.Message}";
+        }
+    }
+
+    private async Task Save()
+    {
+        if (_preview is null) return;
+
+        _preview.Id = Guid.NewGuid().ToString();
+        _preview.IsBuiltIn = false;
+        await ModelService.AddAsync(_preview);
+        Nav.NavigateTo("/models");
+    }
+}

@@ -28,6 +28,11 @@ public static class LegoCommandBuilder
                 0x00]; // profile: none
     }
 
+    // LWP Port Input Format Setup (Single): subscribe to motor speed updates.
+    // Mode 1 = SPEED (current speed as int8, -100 to 100). Delta = 1 minimum change.
+    public static byte[] SubscribeMotorSpeed(string portId)
+        => [0x0A, 0x00, 0x41, PortByte(portId), 0x01, 0x01, 0x00, 0x00, 0x00, 0x01];
+
     // LWP Port Input Format Setup (Single): subscribe to motor position updates.
     // Mode 2 = POS (relative position, int32 degrees). Delta = 1 degree minimum change.
     public static byte[] SubscribeMotorPosition(string portId)

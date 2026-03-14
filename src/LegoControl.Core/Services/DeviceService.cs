@@ -12,19 +12,17 @@ public class DeviceService : IDeviceService
 
     public Task AddAsync(Device device)
     {
-        if (device.Config.Motors.Count == 0)
-            device.Config = DeviceConfigFactory.CreateDefault(device.Set);
         _devices.Add(device);
         return Task.CompletedTask;
     }
 
-    public Task UpdateAsync(Guid id, string name, LegoSet set)
+    public Task UpdateAsync(Guid id, string name, string modelId)
     {
         var device = _devices.FirstOrDefault(d => d.Id == id);
         if (device is not null)
         {
             device.Name = name;
-            device.Set = set;
+            device.ModelId = modelId;
         }
         return Task.CompletedTask;
     }

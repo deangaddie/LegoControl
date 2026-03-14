@@ -7,7 +7,7 @@ public interface IDeviceService
     IReadOnlyList<Device> Devices { get; }
     Task InitializeAsync();
     Task AddAsync(Device device);
-    Task UpdateAsync(Guid id, string name, LegoSet set);
+    Task UpdateAsync(Guid id, string name, string modelId);
     Task RemoveAsync(Guid id);
     Task UpdateConfigAsync(Guid id, DeviceConfig config);
 }

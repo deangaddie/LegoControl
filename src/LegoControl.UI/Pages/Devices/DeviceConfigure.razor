@@ -1,5 +1,6 @@
 @page "/devices/configure/{Id:guid}"
 @inject IDeviceService DeviceService
+@inject ILegoModelService ModelService
 @inject IBluetoothService BluetoothService
 @inject ILegoHubService HubService
 @inject NavigationManager Nav
@@ -14,34 +15,28 @@
 else
 {
     <MudText Typo="Typo.h4" GutterBottom="true">@_device.Name</MudText>
-    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">@SetLabel(_device.Set)</MudText>
+    @if (_model is not null)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">@_model.Name (#@_model.SetNumber)</MudText>
+    }
 
     <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
         <BluetoothConnectButton />
     </MudStack>
 
-    <MudExpansionPanels Class="mb-4">
-        <MudExpansionPanel Text="How to Connect">
-            @if (_device.Set == LegoSet.Boost)
-            {
+    @if (_model?.ConnectionInstructions.Count > 0)
+    {
+        <MudExpansionPanels Class="mb-4">
+            <MudExpansionPanel Text="How to Connect">
                 <MudList T="string" Dense="true">
-                    <MudListItem Icon="@Icons.Material.Filled.Battery4Bar">Ensure the Move Hub has charged batteries.</MudListItem>
-                    <MudListItem Icon="@Icons.Material.Filled.TouchApp">Press the <strong>green button</strong> on the hub once — the LED flashes white (pairing mode).</MudListItem>
-                    <MudListItem Icon="@Icons.Material.Filled.Bluetooth">Click <strong>Connect</strong> above and select your device from the browser picker.</MudListItem>
-                    <MudListItem Icon="@Icons.Material.Filled.Circle" IconColor="Color.Primary">The LED turns <strong>blue</strong> when connected.</MudListItem>
+                    @foreach (var step in _model.ConnectionInstructions)
+                    {
+                        <MudListItem Icon="@Icons.Material.Filled.ArrowRight">@step</MudListItem>
+                    }
                 </MudList>
-            }
-            else if (_device.Set == LegoSet.AudiRSQetron)
-            {
-                <MudList T="string" Dense="true">
-                    <MudListItem Icon="@Icons.Material.Filled.Battery4Bar">Ensure the Technic Hub has charged batteries.</MudListItem>
-                    <MudListItem Icon="@Icons.Material.Filled.TouchApp">Press the <strong>power button</strong> on the hub — the LED flashes white (pairing mode).</MudListItem>
-                    <MudListItem Icon="@Icons.Material.Filled.Bluetooth">Click <strong>Connect</strong> above and select your device from the browser picker.</MudListItem>
-                    <MudListItem Icon="@Icons.Material.Filled.Circle" IconColor="Color.Success">The LED turns <strong>green</strong> when connected.</MudListItem>
-                </MudList>
-            }
-        </MudExpansionPanel>
-    </MudExpansionPanels>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    }
 
     @if (_motors.Count > 0)
     {
@@ -124,7 +119,10 @@ else
 
                                     <MudDivider Class="mt-3 mb-2" />
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">Test Steering</MudText>
-                                    <MudText Typo="Typo.body2" Class="mt-1">Position: @(_steeringPositions.GetValueOrDefault(motor.PortId))°</MudText>
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Class="mt-1">
+                                        <MudText Typo="Typo.body2" Color="Color.Secondary">Requested: @(_steeringPositions.GetValueOrDefault(motor.PortId))°</MudText>
+                                        <MudText Typo="Typo.body2" Color="@(Math.Abs(HubService.MotorPositions.GetValueOrDefault(motor.PortId) - _steeringPositions.GetValueOrDefault(motor.PortId)) > 5 ? Color.Warning : Color.Primary)">Actual: @(HubService.MotorPositions.GetValueOrDefault(motor.PortId))°</MudText>
+                                    </MudStack>
                                     <MudSlider Value="_steeringPositions.GetValueOrDefault(motor.PortId)"
                                                ValueChanged="@((int v) => TestSteeringMotor(motor, v))"
                                                Min="@motor.SteeringMaxLeft" Max="@motor.SteeringMaxRight" Step="5"
@@ -144,6 +142,45 @@ else
                             }
                             else
                             {
+                                var otherDriveMotors = _motors
+                                    .Where(m => m.PortId != motor.PortId
+                                             && m.Role != MotorRole.Steering
+                                             && m.LinkedPortId != motor.PortId)
+                                    .ToList();
+                                var isFollower = _motors.Any(m => m.LinkedPortId == motor.PortId);
+
+                                @if (otherDriveMotors.Count > 0)
+                                {
+                                    <MudSelect @bind-Value="motor.LinkedPortId"
+                                               Label="Link to motor"
+                                               Variant="Variant.Outlined"
+                                               Margin="Margin.Dense"
+                                               Class="mt-2"
+                                               Clearable="true"
+                                               T="string?">
+                                        @foreach (var other in otherDriveMotors)
+                                        {
+                                            <MudSelectItem Value="@((string?)other.PortId)">Port @other.PortId — @other.Label</MudSelectItem>
+                                        }
+                                    </MudSelect>
+
+                                    @if (motor.LinkedPortId is not null)
+                                    {
+                                        <MudSwitch @bind-Value="motor.InvertLink"
+                                                   Label="Invert link direction"
+                                                   Color="Color.Secondary"
+                                                   Class="mt-1" />
+                                    }
+                                }
+
+                                @if (isFollower)
+                                {
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.Link" Color="Color.Info"
+                                             Size="Size.Small" Class="mt-2">
+                                        Follower — driven by linked motor
+                                    </MudChip>
+                                }
+
                                 <MudText Typo="Typo.body2" Class="mt-3">Min Speed: @motor.MinSpeed%</MudText>
                                 <MudSlider @bind-Value="motor.MinSpeed" Min="0" Max="100" Step="5" />
                                 <MudText Typo="Typo.body2" Class="mt-1">Max Speed: @motor.MaxSpeed%</MudText>
@@ -162,18 +199,30 @@ else
                                 }
                                 @if (BluetoothService.IsConnected)
                                 {
-                                    <MudDivider Class="mt-3 mb-2" />
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Test Motor</MudText>
-                                    <MudText Typo="Typo.body2" Class="mt-1">Speed: @(_testSpeeds.GetValueOrDefault(motor.PortId))%</MudText>
-                                    <MudSlider Value="_testSpeeds.GetValueOrDefault(motor.PortId)"
-                                               ValueChanged="@((int v) => TestDriveMotor(motor, v))"
-                                               Min="@(-motor.MaxSpeed)" Max="@motor.MaxSpeed" Step="5"
-                                               Color="Color.Warning" />
-                                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
-                                               OnClick="@(() => StopMotor(motor))"
-                                               StartIcon="@Icons.Material.Filled.Stop" Class="mt-1">
-                                        Stop
-                                    </MudButton>
+                                    @if (isFollower)
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Info" Class="mt-3">
+                                            This motor is controlled by its linked primary.
+                                        </MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudDivider Class="mt-3 mb-2" />
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Test Motor</MudText>
+                                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Class="mt-1">
+                                            <MudText Typo="Typo.body2" Color="Color.Secondary">Requested: @(_testSpeeds.GetValueOrDefault(motor.PortId))%</MudText>
+                                            <MudText Typo="Typo.body2" Color="@(_testSpeeds.GetValueOrDefault(motor.PortId) != 0 && Math.Abs(HubService.MotorSpeeds.GetValueOrDefault(motor.PortId) - _testSpeeds.GetValueOrDefault(motor.PortId)) > 5 ? Color.Warning : Color.Primary)">Actual: @(HubService.MotorSpeeds.GetValueOrDefault(motor.PortId))%</MudText>
+                                        </MudStack>
+                                        <MudSlider Value="_testSpeeds.GetValueOrDefault(motor.PortId)"
+                                                   ValueChanged="@((int v) => TestDriveMotor(motor, v))"
+                                                   Min="@(-motor.MaxSpeed)" Max="@motor.MaxSpeed" Step="5"
+                                                   Color="Color.Warning" />
+                                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                                   OnClick="@(() => StopMotor(motor))"
+                                                   StartIcon="@Icons.Material.Filled.Stop" Class="mt-1">
+                                            Stop
+                                        </MudButton>
+                                    }
                                 }
                             }
                         </MudCardContent>
@@ -220,6 +269,7 @@ else
     [Parameter] public Guid Id { get; set; }
 
     private Device? _device;
+    private LegoModel? _model;
     private List<MotorConfig> _motors = [];
     private List<SensorConfig> _sensors = [];
     private Dictionary<string, int> _testSpeeds = new();
@@ -233,6 +283,8 @@ else
     protected override void OnInitialized()
     {
         BluetoothService.ConnectionStateChanged += OnConnectionStateChanged;
+        HubService.MotorPositionChanged += OnMotorFeedbackChanged;
+        HubService.MotorSpeedChanged += OnMotorFeedbackChanged;
     }
 
     protected override void OnParametersSet()
@@ -240,6 +292,8 @@ else
         _device = DeviceService.Devices.FirstOrDefault(d => d.Id == Id);
         if (_device is not null)
         {
+            _model = ModelService.Models.FirstOrDefault(m => m.Id == _device.ModelId);
+
             _motors = _device.Config.Motors
                 .Select(m => new MotorConfig
                 {
@@ -253,7 +307,9 @@ else
                     SteeringMaxLeft = m.SteeringMaxLeft,
                     SteeringMaxRight = m.SteeringMaxRight,
                     SteeringCenterSet = m.SteeringCenterSet,
-                    HomingEnabled = m.HomingEnabled
+                    HomingEnabled = m.HomingEnabled,
+                    LinkedPortId = m.LinkedPortId,
+                    InvertLink = m.InvertLink
                 })
                 .ToList();
 
@@ -277,11 +333,19 @@ else
             StateHasChanged();
             if (BluetoothService.IsConnected)
             {
+                foreach (var motor in _motors)
+                {
+                    await HubService.SubscribeMotorPositionAsync(motor.PortId);
+                    await HubService.SubscribeMotorSpeedAsync(motor.PortId);
+                }
                 foreach (var motor in _motors.Where(m => m.Role == MotorRole.Steering && m.HomingEnabled))
                     await RunHoming(motor);
             }
         });
     }
+
+    private void OnMotorFeedbackChanged(string portId, int value)
+        => InvokeAsync(StateHasChanged);
 
     private async Task RunHoming(MotorConfig motor)
     {
@@ -294,7 +358,6 @@ else
 
         if (result.Success)
         {
-            // Update steering limits from measured extents and mark center as set
             motor.SteeringMaxLeft = result.LeftExtent;
             motor.SteeringMaxRight = result.RightExtent;
             motor.SteeringCenterSet = true;
@@ -313,17 +376,39 @@ else
         _homingCts?.Cancel();
     }
 
+    private async Task SendDriveCommandAsync(MotorConfig motor, int speed)
+    {
+        int actual = motor.InvertDirection ? -speed : speed;
+        await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(motor.PortId, actual));
+
+        if (motor.LinkedPortId is not null)
+        {
+            var linked = _motors.FirstOrDefault(m => m.PortId == motor.LinkedPortId);
+            if (linked is not null)
+            {
+                int linkedRaw = motor.InvertLink ? -actual : actual;
+                int linkedActual = linked.InvertDirection ? -linkedRaw : linkedRaw;
+                await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(linked.PortId, linkedActual));
+            }
+        }
+    }
+
     private async Task TestDriveMotor(MotorConfig motor, int speed)
     {
         _testSpeeds[motor.PortId] = speed;
-        int actual = motor.InvertDirection ? -speed : speed;
-        await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(motor.PortId, actual));
+        await SendDriveCommandAsync(motor, speed);
     }
 
     private async Task StopMotor(MotorConfig motor)
     {
         _testSpeeds[motor.PortId] = 0;
         await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(motor.PortId, 0));
+        if (motor.LinkedPortId is not null)
+        {
+            var linked = _motors.FirstOrDefault(m => m.PortId == motor.LinkedPortId);
+            if (linked is not null)
+                await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(linked.PortId, 0));
+        }
     }
 
     private async Task TestSteeringMotor(MotorConfig motor, int degrees)
@@ -335,8 +420,6 @@ else
 
     private async Task SetSteeringCenter(MotorConfig motor)
     {
-        // Reset the motor's encoder to 0 at its current physical position.
-        // After this, GoToAbsolutePosition(0) = straight ahead.
         await BluetoothService.SendCommandAsync(LegoCommandBuilder.PresetEncoder(motor.PortId, 0));
         _steeringPositions[motor.PortId] = 0;
         motor.SteeringCenterSet = true;
@@ -349,16 +432,11 @@ else
         Nav.NavigateTo("/devices");
     }
 
-    private static string SetLabel(LegoSet set) => set switch
-    {
-        LegoSet.Boost => "Boost (#17101)",
-        LegoSet.AudiRSQetron => "Audi RS Q e-tron (#42160)",
-        _ => set.ToString()
-    };
-
     public async ValueTask DisposeAsync()
     {
         BluetoothService.ConnectionStateChanged -= OnConnectionStateChanged;
+        HubService.MotorPositionChanged -= OnMotorFeedbackChanged;
+        HubService.MotorSpeedChanged -= OnMotorFeedbackChanged;
         _homingCts?.Cancel();
         _homingCts?.Dispose();
         if (BluetoothService.IsConnected)

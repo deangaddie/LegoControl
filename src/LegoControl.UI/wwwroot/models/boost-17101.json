@@ -1,0 +1,23 @@
+{
+  "id": "boost-17101",
+  "name": "Boost",
+  "setNumber": "17101",
+  "connectionInstructions": [
+    "Ensure the Move Hub has charged batteries.",
+    "Press the green button on the hub once \u2014 the LED flashes white (pairing mode).",
+    "Click Connect above and select your device from the browser picker.",
+    "The LED turns blue when connected."
+  ],
+  "defaultConfig": {
+    "motors": [
+      { "portId": "A", "label": "Motor A", "role": "Drive" },
+      { "portId": "B", "label": "Motor B", "role": "Drive" },
+      { "portId": "C", "label": "Port C",  "role": "Auxiliary" },
+      { "portId": "D", "label": "Port D",  "role": "Auxiliary" }
+    ],
+    "sensors": [
+      { "portId": "C_SENSOR", "label": "Color / Distance", "mode": "ColorAndDistance" },
+      { "portId": "TILT",     "label": "Tilt Sensor",       "mode": "ColorAndDistance" }
+    ]
+  }
+}

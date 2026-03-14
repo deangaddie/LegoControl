@@ -1,0 +1,147 @@
+@page "/models/edit/{Id}"
+@inject ILegoModelService ModelService
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@using System.Text.Json
+@using System.Text.Json.Serialization
+
+<PageTitle>Edit Model</PageTitle>
+
+@if (_model is null)
+{
+    <MudAlert Severity="Severity.Error">Model not found.</MudAlert>
+}
+else
+{
+    <MudText Typo="Typo.h4" GutterBottom="true">Edit Model</MudText>
+
+    <MudStack Style="max-width: 480px;" Spacing="4">
+        <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" />
+        <MudTextField @bind-Value="_setNumber" Label="Set Number" Variant="Variant.Outlined" />
+        <MudTextField @bind-Value="_instructions" Label="Connection Instructions (one per line)"
+                      Variant="Variant.Outlined" Lines="5" />
+
+        @if (_showError)
+        {
+            <MudAlert Severity="Severity.Error">Please enter a model name.</MudAlert>
+        }
+
+        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/models"))">Cancel</MudButton>
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download"
+                       OnClick="Export">Export JSON</MudButton>
+
+            @if (_model.IsBuiltIn)
+            {
+                @if (_pendingRevert)
+                {
+                    <MudText Typo="Typo.body2" Class="ml-2 mr-1">Revert to original?</MudText>
+                    <MudButton Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" OnClick="Revert">Yes</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => _pendingRevert = false)">Cancel</MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                               StartIcon="@Icons.Material.Filled.RestartAlt"
+                               OnClick="@(() => _pendingRevert = true)">Revert to Original</MudButton>
+                }
+            }
+            else
+            {
+                @if (_pendingDelete)
+                {
+                    <MudText Typo="Typo.body2" Class="ml-2 mr-1">Remove?</MudText>
+                    <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" OnClick="Delete">Yes</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => _pendingDelete = false)">Cancel</MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.Delete"
+                               OnClick="@(() => _pendingDelete = true)">Delete</MudButton>
+                }
+            }
+        </MudStack>
+    </MudStack>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    private LegoModel? _model;
+    private string _name = "";
+    private string _setNumber = "";
+    private string _instructions = "";
+    private bool _showError;
+    private bool _pendingDelete;
+    private bool _pendingRevert;
+
+    private static readonly JsonSerializerOptions ExportOptions = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    protected override void OnParametersSet()
+    {
+        var found = ModelService.Models.FirstOrDefault(m => m.Id == Id);
+        if (found is null)
+        {
+            Nav.NavigateTo("/models");
+            return;
+        }
+
+        _model = found;
+        _name = found.Name;
+        _setNumber = found.SetNumber;
+        _instructions = string.Join("\n", found.ConnectionInstructions);
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _showError = true;
+            return;
+        }
+
+        _model!.Name = _name.Trim();
+        _model.SetNumber = _setNumber.Trim();
+        _model.ConnectionInstructions = _instructions
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        await ModelService.UpdateAsync(_model);
+        Nav.NavigateTo("/models");
+    }
+
+    private async Task Export()
+    {
+        if (_model is null) return;
+        var json = JsonSerializer.Serialize(_model, ExportOptions);
+        var filename = $"{_model.Name.Replace(" ", "-").ToLower()}-{_model.SetNumber}.json";
+        await JS.InvokeVoidAsync("downloadJson", filename, json);
+    }
+
+    private async Task Revert()
+    {
+        await ModelService.RevertAsync(Id);
+        // Reload form fields from the now-reverted model
+        var reverted = ModelService.Models.FirstOrDefault(m => m.Id == Id);
+        if (reverted is not null)
+        {
+            _model = reverted;
+            _name = reverted.Name;
+            _setNumber = reverted.SetNumber;
+            _instructions = string.Join("\n", reverted.ConnectionInstructions);
+        }
+        _pendingRevert = false;
+    }
+
+    private async Task Delete()
+    {
+        await ModelService.RemoveAsync(Id);
+        Nav.NavigateTo("/models");
+    }
+}

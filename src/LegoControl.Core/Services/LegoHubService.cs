@@ -4,9 +4,13 @@ public class LegoHubService : ILegoHubService
 {
     private readonly IBluetoothService _bt;
     private readonly Dictionary<string, int> _motorPositions = new();
+    private readonly Dictionary<string, int> _motorSpeeds = new();
 
     public IReadOnlyDictionary<string, int> MotorPositions => _motorPositions;
     public event Action<string, int>? MotorPositionChanged;
+
+    public IReadOnlyDictionary<string, int> MotorSpeeds => _motorSpeeds;
+    public event Action<string, int>? MotorSpeedChanged;
 
     public LegoHubService(IBluetoothService bt)
     {
@@ -16,6 +20,9 @@ public class LegoHubService : ILegoHubService
 
     public Task SubscribeMotorPositionAsync(string portId)
         => _bt.SendCommandAsync(LegoCommandBuilder.SubscribeMotorPosition(portId));
+
+    public Task SubscribeMotorSpeedAsync(string portId)
+        => _bt.SendCommandAsync(LegoCommandBuilder.SubscribeMotorSpeed(portId));
 
     public async Task<SteeringHomingResult> RunSteeringHomingAsync(string portId, CancellationToken ct = default)
     {
@@ -80,11 +87,13 @@ public class LegoHubService : ILegoHubService
         return lastPos;
     }
 
-    // Parse LWP Port Value Single (0x45) messages to extract motor position.
-    // Format: [length, 0x00, 0x45, port_byte, b0, b1, b2, b3]  (int32 LE position)
+    // Parse LWP Port Value Single (0x45) messages.
+    // Speed:    [0x05, 0x00, 0x45, port, speed_byte]          (int8, mode 1)
+    // Position: [0x08, 0x00, 0x45, port, b0, b1, b2, b3]     (int32 LE, mode 2)
+    // Distinguished by message length: 5 = speed, 8 = position.
     private void OnNotificationReceived(byte[] bytes)
     {
-        if (bytes.Length < 8 || bytes[2] != 0x45) return;
+        if (bytes.Length < 5 || bytes[2] != 0x45) return;
 
         string portId = bytes[3] switch
         {
@@ -93,8 +102,19 @@ public class LegoHubService : ILegoHubService
         };
         if (portId == "") return;
 
-        int pos = BitConverter.ToInt32(bytes, 4);
-        _motorPositions[portId] = pos;
-        MotorPositionChanged?.Invoke(portId, pos);
+        if (bytes.Length == 5)
+        {
+            // Speed notification (mode 1): single signed byte
+            int speed = (sbyte)bytes[4];
+            _motorSpeeds[portId] = speed;
+            MotorSpeedChanged?.Invoke(portId, speed);
+        }
+        else if (bytes.Length >= 8)
+        {
+            // Position notification (mode 2): int32 LE
+            int pos = BitConverter.ToInt32(bytes, 4);
+            _motorPositions[portId] = pos;
+            MotorPositionChanged?.Invoke(portId, pos);
+        }
     }
 }

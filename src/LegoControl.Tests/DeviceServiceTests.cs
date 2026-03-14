@@ -29,14 +29,14 @@ public class DeviceServiceTests
     }
 
     [Fact]
-    public async Task AddAsync_WithEmptyConfig_UsesFactoryDefault()
+    public async Task AddAsync_AddsDevice()
     {
         // Arrange
         var device = new Device
         {
             Name = "Test Device",
-            Set = LegoSet.Boost,
-            Config = new DeviceConfig() // empty config
+            ModelId = "boost-17101",
+            Config = new DeviceConfig()
         };
 
         // Act
@@ -44,11 +44,8 @@ public class DeviceServiceTests
 
         // Assert
         _service.Devices.Should().HaveCount(1);
-        var addedDevice = _service.Devices[0];
-        addedDevice.Name.Should().Be("Test Device");
-        addedDevice.Set.Should().Be(LegoSet.Boost);
-        addedDevice.Config.Motors.Should().HaveCount(4); // Boost has 4 motors
-        addedDevice.Config.Sensors.Should().HaveCount(2); // Boost has 2 sensors
+        _service.Devices[0].Name.Should().Be("Test Device");
+        _service.Devices[0].ModelId.Should().Be("boost-17101");
     }
 
     [Fact]
@@ -63,7 +60,7 @@ public class DeviceServiceTests
         var device = new Device
         {
             Name = "Test Device",
-            Set = LegoSet.Boost,
+            ModelId = "boost-17101",
             Config = customConfig
         };
 
@@ -79,48 +76,48 @@ public class DeviceServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_ExistingDevice_UpdatesNameAndSet()
+    public async Task UpdateAsync_ExistingDevice_UpdatesNameAndModelId()
     {
         // Arrange
         var device = new Device
         {
             Name = "Original Name",
-            Set = LegoSet.Boost
+            ModelId = "boost-17101"
         };
         await _service.AddAsync(device);
         var deviceId = device.Id;
 
         // Act
-        await _service.UpdateAsync(deviceId, "New Name", LegoSet.AudiRSQetron);
+        await _service.UpdateAsync(deviceId, "New Name", "audi-42160");
 
         // Assert
         var updatedDevice = _service.Devices.Single();
         updatedDevice.Id.Should().Be(deviceId);
         updatedDevice.Name.Should().Be("New Name");
-        updatedDevice.Set.Should().Be(LegoSet.AudiRSQetron);
+        updatedDevice.ModelId.Should().Be("audi-42160");
     }
 
     [Fact]
     public async Task UpdateAsync_NonExistentDevice_DoesNothing()
     {
         // Arrange
-        var device = new Device { Name = "Test", Set = LegoSet.Boost };
+        var device = new Device { Name = "Test", ModelId = "boost-17101" };
         await _service.AddAsync(device);
 
         // Act
-        await _service.UpdateAsync(Guid.NewGuid(), "New Name", LegoSet.AudiRSQetron);
+        await _service.UpdateAsync(Guid.NewGuid(), "New Name", "audi-42160");
 
         // Assert
         var unchangedDevice = _service.Devices.Single();
         unchangedDevice.Name.Should().Be("Test");
-        unchangedDevice.Set.Should().Be(LegoSet.Boost);
+        unchangedDevice.ModelId.Should().Be("boost-17101");
     }
 
     [Fact]
     public async Task RemoveAsync_ExistingDevice_RemovesDevice()
     {
         // Arrange
-        var device = new Device { Name = "Test", Set = LegoSet.Boost };
+        var device = new Device { Name = "Test", ModelId = "boost-17101" };
         await _service.AddAsync(device);
         var deviceId = device.Id;
 
@@ -135,7 +132,7 @@ public class DeviceServiceTests
     public async Task RemoveAsync_NonExistentDevice_DoesNothing()
     {
         // Arrange
-        var device = new Device { Name = "Test", Set = LegoSet.Boost };
+        var device = new Device { Name = "Test", ModelId = "boost-17101" };
         await _service.AddAsync(device);
 
         // Act
@@ -149,7 +146,7 @@ public class DeviceServiceTests
     public async Task UpdateConfigAsync_ExistingDevice_UpdatesConfig()
     {
         // Arrange
-        var device = new Device { Name = "Test", Set = LegoSet.Boost };
+        var device = new Device { Name = "Test", ModelId = "boost-17101" };
         await _service.AddAsync(device);
         var deviceId = device.Id;
 
@@ -170,7 +167,7 @@ public class DeviceServiceTests
     public async Task UpdateConfigAsync_NonExistentDevice_DoesNothing()
     {
         // Arrange
-        var device = new Device { Name = "Test", Set = LegoSet.Boost };
+        var device = new Device { Name = "Test", ModelId = "boost-17101" };
         await _service.AddAsync(device);
 
         var originalConfig = device.Config;

@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @inject IDeviceService DeviceService
+@inject ILegoModelService ModelService
 @inject IJSRuntime JS
 
 <MudThemeProvider IsDarkMode="@_isDarkMode" />
@@ -47,6 +48,7 @@
         var stored = await JS.InvokeAsync<string?>("localStorage.getItem", ThemeKey);
         _isDarkMode = stored == "true";
 
+        await ModelService.InitializeAsync();
         await DeviceService.InitializeAsync();
         _initialized = true;
     }
