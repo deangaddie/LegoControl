@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/LegoControl.Core/LegoControl.Core.csproj" />
+    <Project Path="src/LegoControl.Tests/LegoControl.Tests.csproj" />
     <Project Path="src/LegoControl.UI/LegoControl.UI.csproj" />
   </Folder>
 </Solution>
