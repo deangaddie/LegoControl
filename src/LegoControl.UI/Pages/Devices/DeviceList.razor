@@ -1,0 +1,75 @@
+@page "/devices"
+@inject IDeviceService DeviceService
+@inject NavigationManager Nav
+
+<PageTitle>Devices</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+    <MudText Typo="Typo.h4">My Devices</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+               OnClick="@(() => Nav.NavigateTo("/devices/add"))">
+        Add Device
+    </MudButton>
+</MudStack>
+
+@if (!DeviceService.Devices.Any())
+{
+    <MudAlert Severity="Severity.Info" Class="mt-4">
+        No devices added yet. Click <strong>Add Device</strong> to get started.
+    </MudAlert>
+}
+else
+{
+    <MudGrid>
+        @foreach (var device in DeviceService.Devices)
+        {
+            var d = device;
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6">@d.Name</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@SetLabel(d.Set)</MudText>
+                    </MudCardContent>
+                    <MudCardActions>
+                        @if (_pendingDeleteId == d.Id)
+                        {
+                            <MudText Typo="Typo.body2" Class="mr-2">Remove?</MudText>
+                            <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled"
+                                       OnClick="@(() => Delete(d.Id))" >Yes</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Text"
+                                       OnClick="@(() => _pendingDeleteId = null)">Cancel</MudButton>
+                        }
+                        else
+                        {
+                            <MudTooltip Text="Configure">
+                                <MudIconButton Icon="@Icons.Material.Filled.Tune"
+                                               OnClick="@(() => Nav.NavigateTo($"/devices/configure/{d.Id}"))" />
+                            </MudTooltip>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                           OnClick="@(() => Nav.NavigateTo($"/devices/edit/{d.Id}"))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                           OnClick="@(() => _pendingDeleteId = d.Id)" />
+                        }
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private Guid? _pendingDeleteId;
+
+    private static string SetLabel(LegoSet set) => set switch
+    {
+        LegoSet.Boost => "Boost (#17101)",
+        LegoSet.AudiRSQetron => "Audi RS Q e-tron (#42160)",
+        _ => set.ToString()
+    };
+
+    private async Task Delete(Guid id)
+    {
+        await DeviceService.RemoveAsync(id);
+        _pendingDeleteId = null;
+    }
+}

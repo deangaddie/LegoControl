@@ -1,0 +1,64 @@
+@page "/devices/edit/{Id:guid}"
+@inject IDeviceService DeviceService
+@inject NavigationManager Nav
+
+<PageTitle>Edit Device</PageTitle>
+
+@if (_device is null)
+{
+    <MudAlert Severity="Severity.Error">Device not found.</MudAlert>
+}
+else
+{
+    <MudText Typo="Typo.h4" GutterBottom="true">Edit Device</MudText>
+
+    <MudStack Style="max-width: 480px;" Spacing="4">
+        <MudTextField @bind-Value="_name" Label="Device Name" Variant="Variant.Outlined" />
+
+        <MudSelect @bind-Value="_set" Label="Lego Set" Variant="Variant.Outlined" T="LegoSet">
+            <MudSelectItem Value="LegoSet.Boost">Boost (#17101)</MudSelectItem>
+            <MudSelectItem Value="LegoSet.AudiRSQetron">Audi RS Q e-tron (#42160)</MudSelectItem>
+        </MudSelect>
+
+        @if (_showError)
+        {
+            <MudAlert Severity="Severity.Error">Please enter a device name.</MudAlert>
+        }
+
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/devices"))">Cancel</MudButton>
+        </MudStack>
+    </MudStack>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Device? _device;
+    private string _name = string.Empty;
+    private LegoSet _set;
+    private bool _showError;
+
+    protected override void OnParametersSet()
+    {
+        _device = DeviceService.Devices.FirstOrDefault(d => d.Id == Id);
+        if (_device is not null)
+        {
+            _name = _device.Name;
+            _set = _device.Set;
+        }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _showError = true;
+            return;
+        }
+
+        await DeviceService.UpdateAsync(Id, _name.Trim(), _set);
+        Nav.NavigateTo("/devices");
+    }
+}

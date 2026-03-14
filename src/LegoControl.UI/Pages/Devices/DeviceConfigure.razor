@@ -1,0 +1,370 @@
+@page "/devices/configure/{Id:guid}"
+@inject IDeviceService DeviceService
+@inject IBluetoothService BluetoothService
+@inject ILegoHubService HubService
+@inject NavigationManager Nav
+@implements IAsyncDisposable
+
+<PageTitle>Configure Device</PageTitle>
+
+@if (_device is null)
+{
+    <MudAlert Severity="Severity.Error">Device not found.</MudAlert>
+}
+else
+{
+    <MudText Typo="Typo.h4" GutterBottom="true">@_device.Name</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">@SetLabel(_device.Set)</MudText>
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+        <BluetoothConnectButton />
+    </MudStack>
+
+    <MudExpansionPanels Class="mb-4">
+        <MudExpansionPanel Text="How to Connect">
+            @if (_device.Set == LegoSet.Boost)
+            {
+                <MudList T="string" Dense="true">
+                    <MudListItem Icon="@Icons.Material.Filled.Battery4Bar">Ensure the Move Hub has charged batteries.</MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.TouchApp">Press the <strong>green button</strong> on the hub once — the LED flashes white (pairing mode).</MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.Bluetooth">Click <strong>Connect</strong> above and select your device from the browser picker.</MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.Circle" IconColor="Color.Primary">The LED turns <strong>blue</strong> when connected.</MudListItem>
+                </MudList>
+            }
+            else if (_device.Set == LegoSet.AudiRSQetron)
+            {
+                <MudList T="string" Dense="true">
+                    <MudListItem Icon="@Icons.Material.Filled.Battery4Bar">Ensure the Technic Hub has charged batteries.</MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.TouchApp">Press the <strong>power button</strong> on the hub — the LED flashes white (pairing mode).</MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.Bluetooth">Click <strong>Connect</strong> above and select your device from the browser picker.</MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.Circle" IconColor="Color.Success">The LED turns <strong>green</strong> when connected.</MudListItem>
+                </MudList>
+            }
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+
+    @if (_motors.Count > 0)
+    {
+        <MudText Typo="Typo.h6" Class="mb-2">Motors</MudText>
+        <MudGrid Class="mb-4">
+            @foreach (var motor in _motors)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard>
+                        <MudCardContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">Port @motor.PortId</MudText>
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@motor.Role</MudChip>
+                            </MudStack>
+                            <MudTextField @bind-Value="motor.Label" Label="Label" Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" Class="mt-2" />
+                            <MudSwitch @bind-Value="motor.InvertDirection" Label="Invert Direction"
+                                       Color="Color.Primary" Class="mt-2" />
+
+                            @if (motor.Role == MotorRole.Steering)
+                            {
+                                <MudText Typo="Typo.body2" Class="mt-3">Max Left: @motor.SteeringMaxLeft°</MudText>
+                                <MudSlider @bind-Value="motor.SteeringMaxLeft" Min="-180" Max="0" Step="5" />
+                                <MudText Typo="Typo.body2" Class="mt-1">Max Right: @motor.SteeringMaxRight°</MudText>
+                                <MudSlider @bind-Value="motor.SteeringMaxRight" Min="0" Max="180" Step="5" />
+
+                                <MudSwitch @bind-Value="motor.HomingEnabled" Label="Auto-home on connect"
+                                           Color="Color.Secondary" Class="mt-2" />
+
+                                <MudTooltip Text="@(BluetoothService.IsConnected ? "Marks the current wheel position as straight ahead (0°)" : "Requires connection")">
+                                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                               Disabled="@(!BluetoothService.IsConnected)"
+                                               OnClick="@(() => SetSteeringCenter(motor))"
+                                               StartIcon="@Icons.Material.Filled.MyLocation" Class="mt-3">
+                                        Set Center
+                                    </MudButton>
+                                </MudTooltip>
+                                @if (motor.SteeringCenterSet)
+                                {
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.Check" Color="Color.Success"
+                                             Size="Size.Small" Class="ml-2">Center set</MudChip>
+                                }
+
+                                @if (BluetoothService.IsConnected)
+                                {
+                                    <MudDivider Class="mt-3 mb-2" />
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">Homing</MudText>
+                                        @if (_homingStatus.GetValueOrDefault(motor.PortId)?.Running == true)
+                                        {
+                                            <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Error"
+                                                       OnClick="CancelHoming"
+                                                       StartIcon="@Icons.Material.Filled.Stop">Cancel</MudButton>
+                                        }
+                                        else
+                                        {
+                                            <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                                       OnClick="@(() => RunHoming(motor))"
+                                                       StartIcon="@Icons.Material.Filled.Search">Run Homing</MudButton>
+                                        }
+                                    </MudStack>
+                                    @if (_homingStatus.GetValueOrDefault(motor.PortId)?.Running == true)
+                                    {
+                                        <MudProgressLinear Indeterminate="true" Color="Color.Warning" Class="mt-1" />
+                                        <MudText Typo="Typo.caption" Color="Color.Warning" Class="mt-1">@_homingPhase</MudText>
+                                    }
+                                    else if (_homingStatus.GetValueOrDefault(motor.PortId)?.Result is { } result)
+                                    {
+                                        @if (result.Success)
+                                        {
+                                            <MudAlert Severity="Severity.Success" Dense="true" Class="mt-1">
+                                                Homed — left @result.LeftExtent°, right @result.RightExtent°
+                                            </MudAlert>
+                                        }
+                                        else
+                                        {
+                                            <MudAlert Severity="Severity.Error" Dense="true" Class="mt-1">@result.Error</MudAlert>
+                                        }
+                                    }
+
+                                    <MudDivider Class="mt-3 mb-2" />
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Test Steering</MudText>
+                                    <MudText Typo="Typo.body2" Class="mt-1">Position: @(_steeringPositions.GetValueOrDefault(motor.PortId))°</MudText>
+                                    <MudSlider Value="_steeringPositions.GetValueOrDefault(motor.PortId)"
+                                               ValueChanged="@((int v) => TestSteeringMotor(motor, v))"
+                                               Min="@motor.SteeringMaxLeft" Max="@motor.SteeringMaxRight" Step="5"
+                                               Color="Color.Warning" />
+                                    <MudStack Row="true" Spacing="1" Class="mt-1">
+                                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                                   OnClick="@(() => TestSteeringMotor(motor, motor.SteeringMaxLeft))"
+                                                   StartIcon="@Icons.Material.Filled.ArrowBack">Full Left</MudButton>
+                                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                                   OnClick="@(() => TestSteeringMotor(motor, 0))"
+                                                   StartIcon="@Icons.Material.Filled.MyLocation">Center</MudButton>
+                                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                                   OnClick="@(() => TestSteeringMotor(motor, motor.SteeringMaxRight))"
+                                                   EndIcon="@Icons.Material.Filled.ArrowForward">Full Right</MudButton>
+                                    </MudStack>
+                                }
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.body2" Class="mt-3">Min Speed: @motor.MinSpeed%</MudText>
+                                <MudSlider @bind-Value="motor.MinSpeed" Min="0" Max="100" Step="5" />
+                                <MudText Typo="Typo.body2" Class="mt-1">Max Speed: @motor.MaxSpeed%</MudText>
+                                <MudSlider @bind-Value="motor.MaxSpeed" Min="0" Max="100" Step="5" />
+                                <MudTooltip Text="@(BluetoothService.IsConnected ? "" : "Requires connection")">
+                                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                               Disabled="@(!BluetoothService.IsConnected)"
+                                               StartIcon="@Icons.Material.Filled.Home" Class="mt-3">
+                                        Set Home Position
+                                    </MudButton>
+                                </MudTooltip>
+                                @if (motor.HomePositionSet)
+                                {
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.Check" Color="Color.Success"
+                                             Size="Size.Small" Class="ml-2">Home set</MudChip>
+                                }
+                                @if (BluetoothService.IsConnected)
+                                {
+                                    <MudDivider Class="mt-3 mb-2" />
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Test Motor</MudText>
+                                    <MudText Typo="Typo.body2" Class="mt-1">Speed: @(_testSpeeds.GetValueOrDefault(motor.PortId))%</MudText>
+                                    <MudSlider Value="_testSpeeds.GetValueOrDefault(motor.PortId)"
+                                               ValueChanged="@((int v) => TestDriveMotor(motor, v))"
+                                               Min="@(-motor.MaxSpeed)" Max="@motor.MaxSpeed" Step="5"
+                                               Color="Color.Warning" />
+                                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                               OnClick="@(() => StopMotor(motor))"
+                                               StartIcon="@Icons.Material.Filled.Stop" Class="mt-1">
+                                        Stop
+                                    </MudButton>
+                                }
+                            }
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+
+    @if (_sensors.Count > 0)
+    {
+        <MudText Typo="Typo.h6" Class="mb-2">Sensors</MudText>
+        <MudGrid Class="mb-4">
+            @foreach (var sensor in _sensors)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard>
+                        <MudCardContent>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Port @sensor.PortId</MudText>
+                            <MudTextField @bind-Value="sensor.Label" Label="Label" Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" Class="mt-2" />
+                            <MudSelect @bind-Value="sensor.Mode" Label="Mode" Variant="Variant.Outlined"
+                                       Margin="Margin.Dense" Class="mt-2" T="SensorMode">
+                                <MudSelectItem Value="SensorMode.ColorAndDistance">Color + Distance</MudSelectItem>
+                                <MudSelectItem Value="SensorMode.Color">Color only</MudSelectItem>
+                                <MudSelectItem Value="SensorMode.Distance">Distance only</MudSelectItem>
+                                <MudSelectItem Value="SensorMode.Reflection">Reflection</MudSelectItem>
+                                <MudSelectItem Value="SensorMode.AmbientLight">Ambient Light</MudSelectItem>
+                            </MudSelect>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+
+    <MudStack Row="true" Spacing="2">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Save</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/devices"))">Cancel</MudButton>
+    </MudStack>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Device? _device;
+    private List<MotorConfig> _motors = [];
+    private List<SensorConfig> _sensors = [];
+    private Dictionary<string, int> _testSpeeds = new();
+    private Dictionary<string, int> _steeringPositions = new();
+
+    private record HomingStatus(bool Running, SteeringHomingResult? Result = null);
+    private Dictionary<string, HomingStatus> _homingStatus = new();
+    private CancellationTokenSource? _homingCts;
+    private string _homingPhase = "";
+
+    protected override void OnInitialized()
+    {
+        BluetoothService.ConnectionStateChanged += OnConnectionStateChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        _device = DeviceService.Devices.FirstOrDefault(d => d.Id == Id);
+        if (_device is not null)
+        {
+            _motors = _device.Config.Motors
+                .Select(m => new MotorConfig
+                {
+                    PortId = m.PortId,
+                    Label = m.Label,
+                    Role = m.Role,
+                    InvertDirection = m.InvertDirection,
+                    MinSpeed = m.MinSpeed,
+                    MaxSpeed = m.MaxSpeed,
+                    HomePositionSet = m.HomePositionSet,
+                    SteeringMaxLeft = m.SteeringMaxLeft,
+                    SteeringMaxRight = m.SteeringMaxRight,
+                    SteeringCenterSet = m.SteeringCenterSet,
+                    HomingEnabled = m.HomingEnabled
+                })
+                .ToList();
+
+            _sensors = _device.Config.Sensors
+                .Select(s => new SensorConfig { PortId = s.PortId, Label = s.Label, Mode = s.Mode })
+                .ToList();
+
+            foreach (var m in _motors)
+            {
+                _testSpeeds.TryAdd(m.PortId, 0);
+                _steeringPositions.TryAdd(m.PortId, 0);
+                _homingStatus.TryAdd(m.PortId, new HomingStatus(false));
+            }
+        }
+    }
+
+    private void OnConnectionStateChanged()
+    {
+        InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            if (BluetoothService.IsConnected)
+            {
+                foreach (var motor in _motors.Where(m => m.Role == MotorRole.Steering && m.HomingEnabled))
+                    await RunHoming(motor);
+            }
+        });
+    }
+
+    private async Task RunHoming(MotorConfig motor)
+    {
+        _homingCts = new CancellationTokenSource();
+        _homingStatus[motor.PortId] = new HomingStatus(Running: true);
+        _homingPhase = "Sweeping left…";
+        StateHasChanged();
+
+        var result = await HubService.RunSteeringHomingAsync(motor.PortId, _homingCts.Token);
+
+        if (result.Success)
+        {
+            // Update steering limits from measured extents and mark center as set
+            motor.SteeringMaxLeft = result.LeftExtent;
+            motor.SteeringMaxRight = result.RightExtent;
+            motor.SteeringCenterSet = true;
+            _steeringPositions[motor.PortId] = 0;
+        }
+
+        _homingStatus[motor.PortId] = new HomingStatus(Running: false, Result: result);
+        _homingPhase = "";
+        _homingCts.Dispose();
+        _homingCts = null;
+        StateHasChanged();
+    }
+
+    private void CancelHoming()
+    {
+        _homingCts?.Cancel();
+    }
+
+    private async Task TestDriveMotor(MotorConfig motor, int speed)
+    {
+        _testSpeeds[motor.PortId] = speed;
+        int actual = motor.InvertDirection ? -speed : speed;
+        await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(motor.PortId, actual));
+    }
+
+    private async Task StopMotor(MotorConfig motor)
+    {
+        _testSpeeds[motor.PortId] = 0;
+        await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(motor.PortId, 0));
+    }
+
+    private async Task TestSteeringMotor(MotorConfig motor, int degrees)
+    {
+        _steeringPositions[motor.PortId] = degrees;
+        int actual = motor.InvertDirection ? -degrees : degrees;
+        await BluetoothService.SendCommandAsync(LegoCommandBuilder.GoToAbsolutePosition(motor.PortId, actual));
+    }
+
+    private async Task SetSteeringCenter(MotorConfig motor)
+    {
+        // Reset the motor's encoder to 0 at its current physical position.
+        // After this, GoToAbsolutePosition(0) = straight ahead.
+        await BluetoothService.SendCommandAsync(LegoCommandBuilder.PresetEncoder(motor.PortId, 0));
+        _steeringPositions[motor.PortId] = 0;
+        motor.SteeringCenterSet = true;
+    }
+
+    private async Task Save()
+    {
+        var config = new DeviceConfig { Motors = _motors, Sensors = _sensors };
+        await DeviceService.UpdateConfigAsync(Id, config);
+        Nav.NavigateTo("/devices");
+    }
+
+    private static string SetLabel(LegoSet set) => set switch
+    {
+        LegoSet.Boost => "Boost (#17101)",
+        LegoSet.AudiRSQetron => "Audi RS Q e-tron (#42160)",
+        _ => set.ToString()
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        BluetoothService.ConnectionStateChanged -= OnConnectionStateChanged;
+        _homingCts?.Cancel();
+        _homingCts?.Dispose();
+        if (BluetoothService.IsConnected)
+        {
+            foreach (var m in _motors.Where(m => m.Role != MotorRole.Steering))
+                await BluetoothService.SendCommandAsync(LegoCommandBuilder.StartPower(m.PortId, 0));
+        }
+    }
+}

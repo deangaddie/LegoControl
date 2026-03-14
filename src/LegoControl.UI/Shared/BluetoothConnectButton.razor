@@ -1,0 +1,85 @@
+@inject IBluetoothService Bluetooth
+@implements IDisposable
+
+@if (!_supported)
+{
+    <MudAlert Severity="Severity.Warning">
+        Web Bluetooth is not supported in this browser. Use Chrome or Edge on desktop or Android.
+    </MudAlert>
+}
+else if (Bluetooth.IsConnected)
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+        <MudChip T="string" Icon="@Icons.Material.Filled.Bluetooth" Color="Color.Success" Size="Size.Small">
+            @Bluetooth.ConnectedDeviceName
+        </MudChip>
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.BluetoothDisabled"
+                   OnClick="DisconnectAsync">
+            Disconnect
+        </MudButton>
+    </MudStack>
+}
+else
+{
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Bluetooth"
+               Disabled="@_connecting" OnClick="ConnectAsync">
+        @(_connecting ? "Connecting\u2026" : "Connect")
+    </MudButton>
+}
+
+@if (_errorMessage is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mt-2">@_errorMessage</MudAlert>
+}
+
+@code {
+    private bool _supported = true;
+    private bool _connecting;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _supported = await Bluetooth.IsSupportedAsync();
+        Bluetooth.ConnectionStateChanged += OnConnectionStateChanged;
+    }
+
+    private async Task ConnectAsync()
+    {
+        _errorMessage = null;
+        _connecting = true;
+        try
+        {
+            await Bluetooth.ConnectAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _connecting = false;
+        }
+    }
+
+    private async Task DisconnectAsync()
+    {
+        try
+        {
+            await Bluetooth.DisconnectAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private void OnConnectionStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Bluetooth.ConnectionStateChanged -= OnConnectionStateChanged;
+    }
+}
