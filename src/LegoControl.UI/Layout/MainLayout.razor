@@ -1,9 +1,11 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject IDeviceService DeviceService
 @inject ILegoModelService ModelService
-@inject IJSRuntime JS
+@inject IThemeService ThemeService
+@inject NavigationManager Nav
 
-<MudThemeProvider IsDarkMode="@_isDarkMode" />
+<MudThemeProvider Theme="@ThemeService.Theme" IsDarkMode="@ThemeService.IsDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -15,8 +17,10 @@
                        OnClick="@ToggleDrawer" />
         <MudText Typo="Typo.h6">LegoControl</MudText>
         <MudSpacer />
-        <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
-                       Color="Color.Inherit" OnClick="ToggleTheme" />
+        <MudIconButton Icon="@(ThemeService.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit" OnClick="ToggleDarkMode" />
+        <MudIconButton Icon="@Icons.Material.Filled.Palette" Color="Color.Inherit"
+                       OnClick="@(() => Nav.NavigateTo("settings"))" />
     </MudAppBar>
     <MudDrawer @bind-Open="_drawerOpen" Elevation="2">
         <NavMenu />
@@ -36,27 +40,25 @@
 </MudLayout>
 
 @code {
-    private const string ThemeKey = "lc_darkmode";
-
     bool _drawerOpen = true;
-    bool _isDarkMode = false;
     bool _initialized = false;
 
     void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
     protected override async Task OnInitializedAsync()
     {
-        var stored = await JS.InvokeAsync<string?>("localStorage.getItem", ThemeKey);
-        _isDarkMode = stored == "true";
+        await ThemeService.InitializeAsync();
+        ThemeService.OnChanged += OnThemeChanged;
 
         await ModelService.InitializeAsync();
         await DeviceService.InitializeAsync();
         _initialized = true;
     }
 
-    private async Task ToggleTheme()
-    {
-        _isDarkMode = !_isDarkMode;
-        await JS.InvokeVoidAsync("localStorage.setItem", ThemeKey, _isDarkMode ? "true" : "false");
-    }
+    private async Task ToggleDarkMode() =>
+        await ThemeService.SetDarkModeAsync(!ThemeService.IsDarkMode);
+
+    private void OnThemeChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => ThemeService.OnChanged -= OnThemeChanged;
 }

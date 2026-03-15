@@ -13,6 +13,7 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 builder.Services.AddMudServices();
 builder.Services.AddScoped<ILegoModelService, LocalStorageLegoModelService>();
 builder.Services.AddScoped<IDeviceService, LocalStorageDeviceService>();
+builder.Services.AddScoped<IThemeService, ThemeService>();
 builder.Services.AddScoped<IBluetoothService, WebBluetoothService>();
 builder.Services.AddScoped<ILegoHubService, LegoHubService>();
 

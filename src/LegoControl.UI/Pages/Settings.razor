@@ -1,0 +1,146 @@
+@page "/settings"
+@inject IThemeService ThemeService
+
+<MudText Typo="Typo.h5" Class="mb-4">Appearance</MudText>
+
+<MudGrid Spacing="4">
+
+    <!-- Dark / Light toggle -->
+    <MudItem xs="12">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.subtitle1" Class="mb-3">Mode</MudText>
+            <MudToggleGroup T="bool" Value="@ThemeService.IsDarkMode" ValueChanged="OnDarkModeChanged"
+                            Color="Color.Primary" CheckMark>
+                <MudToggleItem Value="false">
+                    <MudIcon Icon="@Icons.Material.Filled.LightMode" Class="mr-1" />
+                    Light
+                </MudToggleItem>
+                <MudToggleItem Value="true">
+                    <MudIcon Icon="@Icons.Material.Filled.DarkMode" Class="mr-1" />
+                    Dark
+                </MudToggleItem>
+            </MudToggleGroup>
+        </MudPaper>
+    </MudItem>
+
+    <!-- Preset swatches -->
+    <MudItem xs="12">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudText Typo="Typo.subtitle1" Class="mb-3">Preset Themes</MudText>
+            <MudGrid Spacing="3">
+                @foreach (var preset in ThemeService.Presets)
+                {
+                    var isActive = ThemeService.Settings.PresetName == preset.Name && ThemeService.Settings.CustomPrimary is null;
+                    <MudItem>
+                        <MudTooltip Text="@preset.Name">
+                            <MudBadge Icon="@Icons.Material.Filled.Check" Color="Color.Default"
+                                      Visible="@isActive" Overlap>
+                                <MudIconButton Style="@($"background:{preset.Primary}; color:#fff; width:56px; height:56px; border-radius:50%; border: 3px solid {(isActive ? "var(--mud-palette-text-primary)" : "transparent")};")"
+                                               OnClick="@(() => SelectPreset(preset.Name))"
+                                               aria-label="@preset.Name" Icon="">
+                                    @preset.Name[0]
+                                </MudIconButton>
+                            </MudBadge>
+                        </MudTooltip>
+                        <MudText Typo="Typo.caption" Align="Align.Center" Class="mt-1">@preset.Name</MudText>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudPaper>
+    </MudItem>
+
+    <!-- Custom colors -->
+    <MudItem xs="12">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudExpansionPanels Elevation="0">
+                <MudExpansionPanel Text="Custom Colors" Icon="@Icons.Material.Filled.Colorize">
+                    <MudGrid Spacing="3" Class="mt-2">
+                        <MudItem xs="12" sm="6">
+                            <MudText Typo="Typo.body2" Class="mb-2">Primary Color</MudText>
+                            <MudColorPicker Value="@(_primaryColor)"
+                                            ValueChanged="OnPrimaryChanged"
+                                            ColorPickerMode="ColorPickerMode.HEX"
+                                            ShowAlpha="false"
+                                            Placeholder="Pick a primary color" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudText Typo="Typo.body2" Class="mb-2">Secondary Color</MudText>
+                            <MudColorPicker Value="@(_secondaryColor)"
+                                            ValueChanged="OnSecondaryChanged"
+                                            ColorPickerMode="ColorPickerMode.HEX"
+                                            ShowAlpha="false"
+                                            Placeholder="Pick a secondary color" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                                       StartIcon="@Icons.Material.Filled.Refresh"
+                                       OnClick="ResetCustomColors">
+                                Reset to preset colors
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+        </MudPaper>
+    </MudItem>
+
+</MudGrid>
+
+@code {
+    private MudColor _primaryColor = new("#594ae2");
+    private MudColor _secondaryColor = new("#ff4081");
+
+    protected override void OnInitialized()
+    {
+        var preset = ThemeService.Presets.FirstOrDefault(p => p.Name == ThemeService.Settings.PresetName)
+                     ?? ThemeService.Presets[0];
+        _primaryColor = new(ThemeService.Settings.CustomPrimary ?? preset.Primary);
+        _secondaryColor = new(ThemeService.Settings.CustomSecondary ?? preset.Secondary);
+    }
+
+    private async Task OnDarkModeChanged(bool isDark) =>
+        await ThemeService.SetDarkModeAsync(isDark);
+
+    private async Task SelectPreset(string name)
+    {
+        await ThemeService.SetPresetAsync(name);
+        // Reset custom overrides when switching preset
+        await ThemeService.SetCustomColorsAsync(null, null);
+
+        var preset = ThemeService.Presets.First(p => p.Name == name);
+        _primaryColor = new(preset.Primary);
+        _secondaryColor = new(preset.Secondary);
+    }
+
+    private async Task OnPrimaryChanged(MudColor color)
+    {
+        _primaryColor = color;
+        await ThemeService.SetCustomColorsAsync(color.Value, ThemeService.Settings.CustomSecondary ?? GetPresetSecondary());
+    }
+
+    private async Task OnSecondaryChanged(MudColor color)
+    {
+        _secondaryColor = color;
+        await ThemeService.SetCustomColorsAsync(ThemeService.Settings.CustomPrimary ?? GetPresetPrimary(), color.Value);
+    }
+
+    private async Task ResetCustomColors()
+    {
+        await ThemeService.SetCustomColorsAsync(null, null);
+        var preset = ThemeService.Presets.FirstOrDefault(p => p.Name == ThemeService.Settings.PresetName) ?? ThemeService.Presets[0];
+        _primaryColor = new(preset.Primary);
+        _secondaryColor = new(preset.Secondary);
+    }
+
+    private string GetPresetPrimary()
+    {
+        var preset = ThemeService.Presets.FirstOrDefault(p => p.Name == ThemeService.Settings.PresetName) ?? ThemeService.Presets[0];
+        return preset.Primary;
+    }
+
+    private string GetPresetSecondary()
+    {
+        var preset = ThemeService.Presets.FirstOrDefault(p => p.Name == ThemeService.Settings.PresetName) ?? ThemeService.Presets[0];
+        return preset.Secondary;
+    }
+}

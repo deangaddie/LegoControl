@@ -1,9 +1,10 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject IDeviceService DeviceService
 @inject ILegoModelService ModelService
-@inject IJSRuntime JS
+@inject IThemeService ThemeService
 
-<MudThemeProvider IsDarkMode="@_isDarkMode" />
+<MudThemeProvider Theme="@ThemeService.Theme" IsDarkMode="@ThemeService.IsDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -20,17 +21,19 @@
 </div>
 
 @code {
-    private const string ThemeKey = "lc_darkmode";
-    private bool _isDarkMode = false;
     private bool _initialized = false;
 
     protected override async Task OnInitializedAsync()
     {
-        var stored = await JS.InvokeAsync<string?>("localStorage.getItem", ThemeKey);
-        _isDarkMode = stored == "true";
+        await ThemeService.InitializeAsync();
+        ThemeService.OnChanged += OnThemeChanged;
 
         await ModelService.InitializeAsync();
         await DeviceService.InitializeAsync();
         _initialized = true;
     }
+
+    private void OnThemeChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => ThemeService.OnChanged -= OnThemeChanged;
 }
