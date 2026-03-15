@@ -1,11 +1,19 @@
 # LegoControl
 Control Lego motorised devices by Bluetooth in the browser
 
-This will use the browser Bluetooth to control connected Lego devices.
+Uses the Web Bluetooth API to control connected Lego devices. The app is a Blazor WebAssembly app that runs entirely locally in the user's browser — no backend server.
 
-The front end for the user will be a Blazor app which runs entirely locally on the users browser.
+Settings, devices, and configurations are stored in browser storage. Data can be exported to a JSON file and imported into another browser.
 
-The app will store settings and used connections/sets/setups in the browser data. There will be an option for the user export the data to a JSON file, and then import into another browser.
+The app is a PWA — it can be installed from the browser and works offline.
+
+## Features
+
+- **Touch controls** — dual on-screen joysticks for throttle and steering (touch-capable devices)
+- **Keyboard controls** — customisable key bindings (arrow keys by default)
+- **Gamepad / controller support** — configurable axis mapping, dead zone, and inversion
+- **Visual programming** — Blockly-based editor with Lego-specific blocks (drive, steer, stop, wait, loops, conditions, variables)
+- **Data portability** — JSON export/import for moving configs between browsers
 
 ## Solution Structure
 
@@ -14,6 +22,7 @@ LegoControl.sln
 src/
   LegoControl.Core/   # Device models, Bluetooth logic, settings (class library)
   LegoControl.UI/     # Blazor WebAssembly frontend
+  LegoControl.Tests/  # Unit tests
 ```
 
 ## Building and Running
@@ -56,11 +65,9 @@ Web Bluetooth is required and is only available in Chromium-based browsers. In p
 | iOS | Any | No — WebKit does not support Web Bluetooth |
 | Any | Firefox, Safari | No |
 
-## Supported Lego sets
+## Supported Lego Sets
 
-None yet.
-
-## Lego sets in progress
-
-- Audi RS Q e-tron (#42160)
-- Boost (#17101)
+| Set | Name | Hub | Notes |
+| --- | --- | --- | --- |
+| #42160 | Audi RS Q e-tron | Technic Hub | Rear + front drive motors (linked), steering motor |
+| #17101 | Boost | Move Hub | Ports A–D, color/distance sensor, tilt sensor |
