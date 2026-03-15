@@ -288,6 +288,10 @@ else
     private PeriodicTimer? _gamepadTimer;
     private Task? _gamepadLoopTask;
 
+    // Command deduplication + periodic resync to recover stuck motors
+    private int _resyncCounter = 0;
+    private const int ResyncIntervalTicks = 10; // ~500 ms at 50 ms/tick
+
     private record GpButton(bool Pressed, double Value);
     private record GpSnapshot(string Id, double[] Axes, GpButton[] Buttons);
 
@@ -376,18 +380,18 @@ else
     {
         if (e.Repeat) return;
         _heldKeys.Add(e.Code);
-        await ApplyKeyState();
+        await ApplyKeyState(forceResend: true); // state just changed — always send
         EnsureCommandLoop();
     }
 
     private async Task OnKeyUp(KeyboardEventArgs e)
     {
         _heldKeys.Remove(e.Code);
-        await ApplyKeyState();
+        await ApplyKeyState(forceResend: true); // state just changed — always send
         if (_heldKeys.Count == 0) StopCommandLoop();
     }
 
-    private async Task ApplyKeyState()
+    private async Task ApplyKeyState(bool forceResend = false)
     {
         if (!BluetoothService.IsConnected) return;
 
@@ -399,8 +403,8 @@ else
         float throttle = up ? 1f : (down ? -1f : 0f);
         float steer    = right ? 1f : (left ? -1f : 0f);
 
-        await SendDriveAsync(throttle);
-        await SendSteerAsync(steer);
+        await SendDriveAsync(throttle, forceResend);
+        await SendSteerAsync(steer, forceResend);
     }
 
     private void EnsureCommandLoop()
@@ -415,7 +419,10 @@ else
         while (_commandTimer is not null && await _commandTimer.WaitForNextTickAsync())
         {
             if (!BluetoothService.IsConnected) continue;
-            await ApplyKeyState();
+            _resyncCounter++;
+            bool forceResend = _resyncCounter >= ResyncIntervalTicks;
+            if (forceResend) _resyncCounter = 0;
+            await ApplyKeyState(forceResend);
         }
     }
 
@@ -490,8 +497,12 @@ else
             if (_gamepadBindings.InvertThrottle) throttle = -throttle;
             if (_gamepadBindings.InvertSteer)    steer    = -steer;
 
-            await SendDriveAsync(throttle);
-            await SendSteerAsync(steer);
+            _resyncCounter++;
+            bool forceResend = _resyncCounter >= ResyncIntervalTicks;
+            if (forceResend) _resyncCounter = 0;
+
+            await SendDriveAsync(throttle, forceResend);
+            await SendSteerAsync(steer, forceResend);
         }
     }
 
@@ -525,17 +536,22 @@ else
 
     // ── Motor command helpers ──────────────────────────────────────────────────
 
-    private async Task SendDriveAsync(float throttle)
+    private async Task SendDriveAsync(float throttle, bool forceResend = false)
     {
+        bool anyChange = false;
         foreach (var motor in _motors.Where(m => m.Role is MotorRole.Drive or MotorRole.Auxiliary))
         {
             if (_motors.Any(m => m.LinkedPortId == motor.PortId)) continue; // skip followers
 
-            float range = throttle >= 0 ? motor.MaxSpeed : motor.MaxSpeed;
+            float range = motor.MaxSpeed;
             int speed = (int)Math.Round(throttle * range);
             if (speed != 0 && Math.Abs(speed) < motor.MinSpeed)
                 speed = motor.MinSpeed * Math.Sign(speed);
 
+            if (!forceResend && _requestedSpeeds.TryGetValue(motor.PortId, out int prevSpeed) && prevSpeed == speed)
+                continue; // no change — skip
+
+            anyChange = true;
             _requestedSpeeds[motor.PortId] = speed;
 
             int actual = motor.InvertDirection ? -speed : speed;
@@ -553,22 +569,27 @@ else
                 }
             }
         }
-        StateHasChanged();
+        if (anyChange) StateHasChanged();
     }
 
-    private async Task SendSteerAsync(float axis)
+    private async Task SendSteerAsync(float axis, bool forceResend = false)
     {
+        bool anyChange = false;
         foreach (var motor in _motors.Where(m => m.Role == MotorRole.Steering))
         {
             int degrees = axis >= 0
                 ? (int)Math.Round(axis * motor.SteeringMaxRight)
                 : (int)Math.Round(axis * Math.Abs(motor.SteeringMaxLeft));
 
+            if (!forceResend && _requestedPositions.TryGetValue(motor.PortId, out int prevPos) && prevPos == degrees)
+                continue; // no change — skip
+
+            anyChange = true;
             _requestedPositions[motor.PortId] = degrees;
             int actual = motor.InvertDirection ? -degrees : degrees;
             await BluetoothService.SendCommandAsync(LegoCommandBuilder.GoToAbsolutePosition(motor.PortId, actual));
         }
-        StateHasChanged();
+        if (anyChange) StateHasChanged();
     }
 
     // ── Customise dialog ───────────────────────────────────────────────────────
