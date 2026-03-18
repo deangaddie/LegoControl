@@ -3,7 +3,7 @@ using MudBlazor;
 
 namespace LegoControl.UI.Services;
 
-public record ThemePreset(string Name, string Primary, string Secondary);
+public record ThemePreset(string Name, string Primary, string Secondary, string Tertiary);
 
 public interface IThemeService
 {
@@ -16,5 +16,6 @@ public interface IThemeService
     Task InitializeAsync();
     Task SetPresetAsync(string presetName);
     Task SetDarkModeAsync(bool isDark);
-    Task SetCustomColorsAsync(string? primary, string? secondary);
+    Task SetCustomColorsAsync(string? primary, string? secondary, string? tertiary);
+    Task SetAutoDarkModeAsync(bool auto);
 }

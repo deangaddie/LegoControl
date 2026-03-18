@@ -1,0 +1,34 @@
+@{
+    var isActive = IsActive();
+    var activeClass = isActive ? "active" : "";
+}
+
+<a href="@Href" class="nav-button @activeClass">
+    <MudIcon Icon="@Icon" />
+    <span class="nav-label">@Label</span>
+</a>
+
+@code {
+    [Parameter]
+    public string Href { get; set; } = "";
+
+    [Parameter]
+    public string Icon { get; set; } = "";
+
+    [Parameter]
+    public string Label { get; set; } = "";
+
+    [Parameter]
+    public string CurrentPath { get; set; } = "";
+
+    private bool IsActive()
+    {
+        if (string.IsNullOrEmpty(Href) && string.IsNullOrEmpty(CurrentPath))
+            return true;
+
+        if (string.IsNullOrEmpty(Href))
+            return Href == CurrentPath;
+
+        return CurrentPath == Href || CurrentPath.StartsWith(Href + "/");
+    }
+}

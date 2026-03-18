@@ -17,8 +17,7 @@ else
 {
     <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
-            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
-                           OnClick="@(() => Nav.NavigateTo("/devices"))" />
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"                           OnClick="@(() => Nav.NavigateTo("/devices"))" />
             <div>
                 <MudText Typo="Typo.h5">@_device.Name</MudText>
                 @if (_model is not null)
@@ -32,67 +31,9 @@ else
 
     @if (_mode == ControlMode.Select)
     {
-        <MudText Typo="Typo.h6" Class="mb-3">Choose a control mode</MudText>
-        <MudGrid>
-            @if (_hasTouch)
-            {
-                <MudItem xs="12" sm="6">
-                    <MudCard Class="pa-2" Style="cursor: pointer;" @onclick="@(() => Nav.NavigateTo($"/devices/play/{Id}/touch"))">
-                        <MudCardContent>
-                            <MudStack AlignItems="AlignItems.Center" Spacing="2">
-                                <MudIcon Icon="@Icons.Material.Filled.TouchApp" Style="font-size: 3rem;" Color="Color.Primary" />
-                                <MudText Typo="Typo.h6">Touch Controls</MudText>
-                                <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
-                                    Full-screen dual-stick controller. Left thumb = throttle, right thumb = steering.
-                                </MudText>
-                            </MudStack>
-                        </MudCardContent>
-                    </MudCard>
-                </MudItem>
-            }
-            <MudItem xs="12" sm="6">
-                <MudCard Class="pa-2" Style="cursor: pointer;" @onclick="@(() => _mode = ControlMode.Keyboard)">
-                    <MudCardContent>
-                        <MudStack AlignItems="AlignItems.Center" Spacing="2">
-                            <MudIcon Icon="@Icons.Material.Filled.Keyboard" Style="font-size: 3rem;" Color="Color.Secondary" />
-                            <MudText Typo="Typo.h6">Keyboard Controls</MudText>
-                            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
-                                Arrow keys to drive. Customisable key bindings.
-                            </MudText>
-                        </MudStack>
-                    </MudCardContent>
-                </MudCard>
-            </MudItem>
-            @if (_hasGamepad)
-            {
-                <MudItem xs="12" sm="6">
-                    <MudCard Class="pa-2" Style="cursor: pointer;" @onclick="EnterGamepadMode">
-                        <MudCardContent>
-                            <MudStack AlignItems="AlignItems.Center" Spacing="2">
-                                <MudIcon Icon="@Icons.Material.Filled.SportsEsports" Style="font-size: 3rem;" Color="Color.Tertiary" />
-                                <MudText Typo="Typo.h6">Gamepad</MudText>
-                                <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
-                                    USB or Bluetooth controller. Pair via OS Bluetooth settings first.
-                                </MudText>
-                            </MudStack>
-                        </MudCardContent>
-                    </MudCard>
-                </MudItem>
-            }
-            <MudItem xs="12" sm="6">
-                <MudCard Class="pa-2" Style="cursor: pointer;" @onclick="@(() => Nav.NavigateTo($"/devices/program/{Id}"))">
-                    <MudCardContent>
-                        <MudStack AlignItems="AlignItems.Center" Spacing="2">
-                            <MudIcon Icon="@Icons.Material.Filled.Code" Style="font-size: 3rem;" Color="Color.Info" />
-                            <MudText Typo="Typo.h6">Visual Program</MudText>
-                            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
-                                Build a sequence of motor commands with drag-and-drop blocks.
-                            </MudText>
-                        </MudStack>
-                    </MudCardContent>
-                </MudCard>
-            </MudItem>
-        </MudGrid>
+        <div class="page-enter">
+            <ControlModePicker HasTouch="_hasTouch" HasGamepad="_hasGamepad" OnModeSelected="OnModeSelected" />
+        </div>
     }
     else if (_mode == ControlMode.Keyboard)
     {
@@ -102,8 +43,7 @@ else
                                OnClick="@(() => { _mode = ControlMode.Select; StopAllMotors(); })" />
                 <MudText Typo="Typo.h6">Keyboard Controls</MudText>
             </MudStack>
-            <MudButton Variant="Variant.Outlined" Size="Size.Small"
-                       StartIcon="@Icons.Material.Filled.Settings"
+            <MudButton Variant="Variant.Outlined" Size="Size.Small"                       StartIcon="@Icons.Material.Filled.Settings"
                        OnClick="OpenCustomiseDialog">Customise</MudButton>
         </MudStack>
 
@@ -116,14 +56,30 @@ else
         <MudPaper Elevation="1" Class="pa-4 mb-4" Style="max-width: 400px;">
             <MudText Typo="Typo.subtitle2" Class="mb-3">Active Bindings</MudText>
             <MudGrid Spacing="1">
-                <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Throttle forward</MudText></MudItem>
-                <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.ThrottleUp</MudChip></MudItem>
-                <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Throttle reverse</MudText></MudItem>
-                <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.ThrottleDown</MudChip></MudItem>
-                <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Steer left</MudText></MudItem>
-                <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.SteerLeft</MudChip></MudItem>
-                <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Steer right</MudText></MudItem>
-                <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.SteerRight</MudChip></MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Throttle forward</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.ThrottleUp</MudChip>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Throttle reverse</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.ThrottleDown</MudChip>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Steer left</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.SteerLeft</MudChip>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Steer right</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@_bindings.SteerRight</MudChip>
+                </MudItem>
             </MudGrid>
             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3">
                 Hold keys to maintain speed/position. Release to stop.
@@ -131,10 +87,8 @@ else
         </MudPaper>
 
         <!-- Keyboard capture area -->
-        <div @ref="_keyboardRef" tabindex="0"
-             style="outline: 2px dashed var(--mud-palette-primary); border-radius: 8px; padding: 24px; text-align: center; cursor: pointer; max-width: 400px;"
-             @onkeydown="OnKeyDown" @onkeyup="OnKeyUp"
-             @onfocus="@(() => _keyboardFocused = true)"
+        <div @ref="_keyboardRef" tabindex="0" class="keyboard-control-area touch-target"             @onkeydown="OnKeyDown"
+             @onkeyup="OnKeyUp"             @onfocus="@(() => _keyboardFocused = true)"
              @onblur="@(() => { _keyboardFocused = false; StopAllMotors(); })">
             @if (_keyboardFocused)
             {
@@ -149,22 +103,19 @@ else
 
         <!-- Motor feedback -->
         <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Motor Feedback</MudText>
-        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Yellow = requested &nbsp;|&nbsp; Green/Red = actual</MudText>
-        <MotorFeedbackPanel Motors="_motors"
-                            HubService="HubService"
-                            RequestedSpeeds="_requestedSpeeds"
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Yellow = requested &nbsp;|&nbsp; Green/Red = actual
+        </MudText>
+        <MotorFeedbackPanel Motors="_motors"                            HubService="HubService"                            RequestedSpeeds="_requestedSpeeds"
                             RequestedPositions="_requestedPositions" />
     }
     else if (_mode == ControlMode.Gamepad)
     {
         <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
             <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small"
-                               OnClick="LeaveGamepadMode" />
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small"                               OnClick="LeaveGamepadMode" />
                 <MudText Typo="Typo.h6">Gamepad</MudText>
             </MudStack>
-            <MudButton Variant="Variant.Outlined" Size="Size.Small"
-                       StartIcon="@Icons.Material.Filled.Settings"
+            <MudButton Variant="Variant.Outlined" Size="Size.Small"                       StartIcon="@Icons.Material.Filled.Settings"
                        OnClick="@(() => Nav.NavigateTo($"/devices/play/{Id}/gamepad-config"))">Configure</MudButton>
         </MudStack>
 
@@ -193,51 +144,64 @@ else
             <MudPaper Elevation="1" Class="pa-4 mb-4" Style="max-width: 400px;">
                 <MudText Typo="Typo.subtitle2" Class="mb-3">Active Bindings</MudText>
                 <MudGrid Spacing="1">
-                    <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Throttle</MudText></MudItem>
-                    <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Axis @_gamepadBindings.ThrottleAxis @(_gamepadBindings.InvertThrottle ? "(inverted)" : "")</MudChip></MudItem>
-                    <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Steer</MudText></MudItem>
-                    <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Axis @_gamepadBindings.SteerAxis @(_gamepadBindings.InvertSteer ? "(inverted)" : "")</MudChip></MudItem>
-                    <MudItem xs="6"><MudText Typo="Typo.body2" Color="Color.Secondary">Dead zone</MudText></MudItem>
-                    <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@(_gamepadBindings.DeadZone.ToString("P0", CultureInfo.InvariantCulture))</MudChip></MudItem>
-                </MudGrid>
-            </MudPaper>
+                    <MudItem xs="6">
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">Throttle</MudText>
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Axis @_gamepadBindings.ThrottleAxis
+                            @(_gamepadBindings.InvertThrottle ? "(inverted)" : "")</MudChip>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Steer</MudText>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">Axis @_gamepadBindings.SteerAxis
+                                @(_gamepadBindings.InvertSteer ? "(inverted)" : "")</MudChip>
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Dead zone</MudText>
+                            </MudItem>
+                            <MudItem xs="6">
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@(_gamepadBindings.DeadZone.ToString("P0",
+                                                    CultureInfo.InvariantCulture))</MudChip>
+                                </MudItem>
+                            </MudGrid>
+                        </MudPaper>
 
-            <!-- Motor feedback -->
-            <MudText Typo="Typo.subtitle2" Class="mt-2 mb-2">Motor Feedback</MudText>
-            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Yellow = requested &nbsp;|&nbsp; Green/Red = actual</MudText>
-            <MotorFeedbackPanel Motors="_motors"
-                                HubService="HubService"
-                                RequestedSpeeds="_requestedSpeeds"
-                                RequestedPositions="_requestedPositions" />
-        }
-    }
-}
+                        <!-- Motor feedback -->
+                        <MudText Typo="Typo.subtitle2" Class="mt-2 mb-2">Motor Feedback</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">Yellow = requested &nbsp;|&nbsp; Green/Red = actual
+                        </MudText>
+                        <MotorFeedbackPanel Motors="_motors" HubService="HubService" RequestedSpeeds="_requestedSpeeds"
+                                            RequestedPositions="_requestedPositions" />
+                    }
+                }
+            }
 
-<!-- Customise key bindings dialog -->
-<MudDialog @bind-Visible="_showCustomise" Options="@(new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true })">
-    <TitleContent>Customise Key Bindings</TitleContent>
-    <DialogContent>
-        <MudText Typo="Typo.body2" Class="mb-3">Click an action, then press the key you want to assign.</MudText>
-        @foreach (var action in _bindingActions)
-        {
-            var a = action;
-            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
-                <MudText Typo="Typo.body2">@a.Label</MudText>
-                <MudButton Variant="@(_rebindingAction == a.Id ? Variant.Filled : Variant.Outlined)"
-                           Color="@(_rebindingAction == a.Id ? Color.Warning : Color.Default)"
-                           Size="Size.Small"
-                           tabindex="0"
-                           @onkeydown="@((KeyboardEventArgs e) => OnRebindKey(a.Id, e))"
-                           OnClick="@(() => _rebindingAction = a.Id)">
-                    @(_rebindingAction == a.Id ? "Press a key…" : a.CurrentKey(_bindings))
-                </MudButton>
-            </MudStack>
-        }
-    </DialogContent>
-    <DialogActions>
-        <MudButton OnClick="CloseCustomiseDialog">Done</MudButton>
-    </DialogActions>
-</MudDialog>
+            <!-- Customise key bindings dialog -->
+            <MudDialog @bind-Visible="_showCustomise"
+                       Options="@(new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true })">
+                <TitleContent>Customise Key Bindings</TitleContent>
+                <DialogContent>
+                    <MudText Typo="Typo.body2" Class="mb-3">Click an action, then press the key you want to assign.</MudText>
+                    @foreach (var action in _bindingActions)
+                    {
+                        var a = action;
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+                            <MudText Typo="Typo.body2">@a.Label</MudText>
+                            <MudButton Variant="@(_rebindingAction == a.Id ? Variant.Filled : Variant.Outlined)"
+                                       Color="@(_rebindingAction == a.Id ? Color.Warning : Color.Default)" Size="Size.Small" tabindex="0"
+                                       @onkeydown="@((KeyboardEventArgs e) => OnRebindKey(a.Id, e))"
+                                       OnClick="@(() => _rebindingAction = a.Id)">
+                                @(_rebindingAction == a.Id ? "Press a key…" : a.CurrentKey(_bindings))
+                            </MudButton>
+                        </MudStack>
+                    }
+                </DialogContent>
+                <DialogActions>
+                    <MudButton OnClick="CloseCustomiseDialog">Done</MudButton>
+                </DialogActions>
+            </MudDialog>
 
 @code {
     [Parameter] public Guid Id { get; set; }
@@ -273,10 +237,10 @@ else
     private record BindingActionDef(string Id, string Label, Func<KeyBindings, string> CurrentKey);
     private readonly List<BindingActionDef> _bindingActions =
     [
-        new("throttleUp",   "Throttle forward", b => b.ThrottleUp),
-        new("throttleDown", "Throttle reverse",  b => b.ThrottleDown),
-        new("steerLeft",    "Steer left",         b => b.SteerLeft),
-        new("steerRight",   "Steer right",        b => b.SteerRight),
+        new("throttleUp", "Throttle forward", b => b.ThrottleUp),
+        new("throttleDown", "Throttle reverse", b => b.ThrottleDown),
+        new("steerLeft", "Steer left", b => b.SteerLeft),
+        new("steerRight", "Steer right", b => b.SteerRight),
     ];
 
     // ── Gamepad ────────────────────────────────────────────────────────────────
@@ -324,10 +288,16 @@ else
         _model = ModelService.Models.FirstOrDefault(m => m.Id == _device.ModelId);
         _motors = _device.Config.Motors.Select(m => new MotorConfig
         {
-            PortId = m.PortId, Label = m.Label, Role = m.Role,
-            InvertDirection = m.InvertDirection, LinkedPortId = m.LinkedPortId, InvertLink = m.InvertLink,
-            MinSpeed = m.MinSpeed, MaxSpeed = m.MaxSpeed,
-            SteeringMaxLeft = m.SteeringMaxLeft, SteeringMaxRight = m.SteeringMaxRight,
+            PortId = m.PortId,
+            Label = m.Label,
+            Role = m.Role,
+            InvertDirection = m.InvertDirection,
+            LinkedPortId = m.LinkedPortId,
+            InvertLink = m.InvertLink,
+            MinSpeed = m.MinSpeed,
+            MaxSpeed = m.MaxSpeed,
+            SteeringMaxLeft = m.SteeringMaxLeft,
+            SteeringMaxRight = m.SteeringMaxRight,
         }).ToList();
 
         foreach (var m in _motors)
@@ -391,17 +361,36 @@ else
         if (_heldKeys.Count == 0) StopCommandLoop();
     }
 
+    private async Task OnModeSelected(ControlModePicker.ControlMode mode)
+    {
+        switch (mode)
+        {
+            case ControlModePicker.ControlMode.Touch:
+                Nav.NavigateTo($"/devices/play/{Id}/touch");
+                break;
+            case ControlModePicker.ControlMode.Keyboard:
+                _mode = ControlMode.Keyboard;
+                break;
+            case ControlModePicker.ControlMode.Gamepad:
+                await EnterGamepadMode();
+                break;
+            case ControlModePicker.ControlMode.Program:
+                Nav.NavigateTo($"/devices/program/{Id}");
+                break;
+        }
+    }
+
     private async Task ApplyKeyState(bool forceResend = false)
     {
         if (!BluetoothService.IsConnected) return;
 
-        bool up    = _heldKeys.Contains(_bindings.ThrottleUp);
-        bool down  = _heldKeys.Contains(_bindings.ThrottleDown);
-        bool left  = _heldKeys.Contains(_bindings.SteerLeft);
+        bool up = _heldKeys.Contains(_bindings.ThrottleUp);
+        bool down = _heldKeys.Contains(_bindings.ThrottleDown);
+        bool left = _heldKeys.Contains(_bindings.SteerLeft);
         bool right = _heldKeys.Contains(_bindings.SteerRight);
 
         float throttle = up ? 1f : (down ? -1f : 0f);
-        float steer    = right ? 1f : (left ? -1f : 0f);
+        float steer = right ? 1f : (left ? -1f : 0f);
 
         await SendDriveAsync(throttle, forceResend);
         await SendSteerAsync(steer, forceResend);
@@ -492,10 +481,10 @@ else
                 ? snapshot.Axes[_gamepadBindings.SteerAxis] : 0.0;
 
             float throttle = ApplyDeadZone((float)rawThrottle, _gamepadBindings.DeadZone);
-            float steer    = ApplyDeadZone((float)rawSteer,    _gamepadBindings.DeadZone);
+            float steer = ApplyDeadZone((float)rawSteer, _gamepadBindings.DeadZone);
 
             if (_gamepadBindings.InvertThrottle) throttle = -throttle;
-            if (_gamepadBindings.InvertSteer)    steer    = -steer;
+            if (_gamepadBindings.InvertSteer) steer = -steer;
 
             _resyncCounter++;
             bool forceResend = _resyncCounter >= ResyncIntervalTicks;
@@ -614,10 +603,10 @@ else
         var key = e.Code; // e.g. "ArrowUp", "KeyW"
         switch (actionId)
         {
-            case "throttleUp":   _bindings = _bindings with { ThrottleUp   = key }; break;
+            case "throttleUp": _bindings = _bindings with { ThrottleUp = key }; break;
             case "throttleDown": _bindings = _bindings with { ThrottleDown = key }; break;
-            case "steerLeft":    _bindings = _bindings with { SteerLeft    = key }; break;
-            case "steerRight":   _bindings = _bindings with { SteerRight   = key }; break;
+            case "steerLeft": _bindings = _bindings with { SteerLeft = key }; break;
+            case "steerRight": _bindings = _bindings with { SteerRight = key }; break;
         }
         _rebindingAction = null;
         StateHasChanged();
@@ -648,9 +637,9 @@ else
 
     private record KeyBindings
     {
-        public string ThrottleUp   { get; init; } = "ArrowUp";
+        public string ThrottleUp { get; init; } = "ArrowUp";
         public string ThrottleDown { get; init; } = "ArrowDown";
-        public string SteerLeft    { get; init; } = "ArrowLeft";
-        public string SteerRight   { get; init; } = "ArrowRight";
+        public string SteerLeft { get; init; } = "ArrowLeft";
+        public string SteerRight { get; init; } = "ArrowRight";
     }
 }

@@ -7,47 +7,44 @@
 
 <MudText Typo="Typo.h4" GutterBottom="true">Add Device</MudText>
 
-<MudStack Style="max-width: 480px;" Spacing="4">
-    <MudTextField @bind-Value="_name" Label="Device Name" Variant="Variant.Outlined"
-                  Placeholder="e.g. My Boost Set" />
+<MudForm @ref="_form" @bind-IsValid="_isFormValid" Model="_device" ValidationDelay="0">
+    <MudStack Style="max-width: 480px;" Spacing="4">
+        <MudTextField @bind-Value="_device.Name" Label="Device Name" Variant="Variant.Outlined"
+                      Placeholder="e.g. My Boost Set" Required="true"
+                      RequiredError="Device name is required" />
 
-    <MudSelect @bind-Value="_modelId" Label="Lego Set" Variant="Variant.Outlined" T="string">
-        @foreach (var model in ModelService.Models)
-        {
-            <MudSelectItem Value="@model.Id">@model.Name (#@model.SetNumber)</MudSelectItem>
-        }
-    </MudSelect>
+        <MudSelect @bind-Value="_device.ModelId" Label="Lego Set" Variant="Variant.Outlined" T="string"
+                   Required="true" RequiredError="Please select a Lego set">
+            @foreach (var model in ModelService.Models)
+            {
+                <MudSelectItem Value="@model.Id">@model.Name (#@model.SetNumber)</MudSelectItem>
+            }
+        </MudSelect>
 
-    @if (_showError)
-    {
-        <MudAlert Severity="Severity.Error">Please enter a device name.</MudAlert>
-    }
-
-    <MudStack Row="true" Spacing="2">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Save</MudButton>
-        <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/devices"))">Cancel</MudButton>
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save"
+                       Disabled="@(!_isFormValid)">Save</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/devices"))">Cancel</MudButton>
+        </MudStack>
     </MudStack>
-</MudStack>
+</MudForm>
 
 @code {
-    private string _name = string.Empty;
-    private string _modelId = string.Empty;
-    private bool _showError;
+    private MudForm _form = new();
+    private bool _isFormValid;
+    private Device _device = new() { Name = "", ModelId = "" };
 
     protected override void OnInitialized()
     {
-        _modelId = ModelService.Models.FirstOrDefault()?.Id ?? string.Empty;
+        _device.ModelId = ModelService.Models.FirstOrDefault()?.Id ?? string.Empty;
     }
 
     private async Task Save()
     {
-        if (string.IsNullOrWhiteSpace(_name))
-        {
-            _showError = true;
-            return;
-        }
+        await _form.ValidateAsync();
+        if (!_form.IsValid) return;
 
-        await DeviceService.AddAsync(new Device { Name = _name.Trim(), ModelId = _modelId });
+        await DeviceService.AddAsync(_device);
         Nav.NavigateTo("/devices");
     }
 }

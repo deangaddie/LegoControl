@@ -1,0 +1,78 @@
+@using LegoControl.Core.Models
+
+<MudText Typo="Typo.h6" Class="mb-3">Choose a control mode</MudText>
+<MudGrid>
+    @if (HasTouch)
+    {
+        <MudItem xs="12" sm="6">
+            <MudCard Class="control-mode-card pa-2" @onclick="() => OnModeSelected.InvokeAsync(ControlMode.Touch)">
+                <MudCardContent>
+                    <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                        <MudIcon Icon="@Icons.Material.Filled.TouchApp" Class="control-mode-icon" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6">Touch Controls</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                            Full-screen dual-stick controller. Left thumb = throttle, right thumb = steering.
+                        </MudText>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    }
+    <MudItem xs="12" sm="6">
+        <MudCard Class="control-mode-card pa-2" @onclick="() => OnModeSelected.InvokeAsync(ControlMode.Keyboard)">
+            <MudCardContent>
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Keyboard" Class="control-mode-icon" Color="Color.Secondary" />
+                    <MudText Typo="Typo.h6">Keyboard Controls</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                        Arrow keys to drive. Customisable key bindings.
+                    </MudText>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    @if (HasGamepad)
+    {
+        <MudItem xs="12" sm="6">
+            <MudCard Class="control-mode-card pa-2" @onclick="() => OnModeSelected.InvokeAsync(ControlMode.Gamepad)">
+                <MudCardContent>
+                    <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                        <MudIcon Icon="@Icons.Material.Filled.SportsEsports" Class="control-mode-icon"
+                                 Color="Color.Tertiary" />
+                        <MudText Typo="Typo.h6">Gamepad</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                            USB or Bluetooth controller. Pair via OS Bluetooth settings first.
+                        </MudText>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    }
+    <MudItem xs="12" sm="6">
+        <MudCard Class="control-mode-card pa-2" @onclick="() => OnModeSelected.InvokeAsync(ControlMode.Program)">
+            <MudCardContent>
+                <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Code" Class="control-mode-icon" Color="Color.Info" />
+                    <MudText Typo="Typo.h6">Visual Program</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center">
+                        Build a sequence of motor commands with drag-and-drop blocks.
+                    </MudText>
+                </MudStack>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    [Parameter] public bool HasTouch { get; set; }
+    [Parameter] public bool HasGamepad { get; set; }
+    [Parameter] public EventCallback<ControlMode> OnModeSelected { get; set; }
+
+    public enum ControlMode
+    {
+        Touch,
+        Keyboard,
+        Gamepad,
+        Program
+    }
+}

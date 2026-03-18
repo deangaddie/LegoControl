@@ -9,17 +9,20 @@
     <MudItem xs="12">
         <MudPaper Class="pa-4" Elevation="2">
             <MudText Typo="Typo.subtitle1" Class="mb-3">Mode</MudText>
-            <MudToggleGroup T="bool" Value="@ThemeService.IsDarkMode" ValueChanged="OnDarkModeChanged"
-                            Color="Color.Primary" CheckMark>
-                <MudToggleItem Value="false">
-                    <MudIcon Icon="@Icons.Material.Filled.LightMode" Class="mr-1" />
-                    Light
-                </MudToggleItem>
-                <MudToggleItem Value="true">
-                    <MudIcon Icon="@Icons.Material.Filled.DarkMode" Class="mr-1" />
-                    Dark
-                </MudToggleItem>
-            </MudToggleGroup>
+            <MudStack Spacing="3">
+                <MudToggleGroup T="bool" Value="@ThemeService.IsDarkMode" ValueChanged="OnDarkModeChanged"
+                                Color="Color.Primary" CheckMark>
+                    <MudToggleItem Value="false">
+                        <MudIcon Icon="@Icons.Material.Filled.LightMode" Class="mr-1" />
+                        Light
+                    </MudToggleItem>
+                    <MudToggleItem Value="true">
+                        <MudIcon Icon="@Icons.Material.Filled.DarkMode" Class="mr-1" />
+                        Dark
+                    </MudToggleItem>
+                </MudToggleGroup>
+                <MudSwitch T="bool" Label="Auto-detect system preference" Value="@ThemeService.Settings.AutoDarkMode" ValueChanged="OnAutoDarkModeChanged" />
+            </MudStack>
         </MudPaper>
     </MudItem>
 
@@ -55,7 +58,7 @@
             <MudExpansionPanels Elevation="0">
                 <MudExpansionPanel Text="Custom Colors" Icon="@Icons.Material.Filled.Colorize">
                     <MudGrid Spacing="3" Class="mt-2">
-                        <MudItem xs="12" sm="6">
+                        <MudItem xs="12" sm="4">
                             <MudText Typo="Typo.body2" Class="mb-2">Primary Color</MudText>
                             <MudColorPicker Value="@(_primaryColor)"
                                             ValueChanged="OnPrimaryChanged"
@@ -63,13 +66,21 @@
                                             ShowAlpha="false"
                                             Placeholder="Pick a primary color" />
                         </MudItem>
-                        <MudItem xs="12" sm="6">
+                        <MudItem xs="12" sm="4">
                             <MudText Typo="Typo.body2" Class="mb-2">Secondary Color</MudText>
                             <MudColorPicker Value="@(_secondaryColor)"
                                             ValueChanged="OnSecondaryChanged"
                                             ColorPickerMode="ColorPickerMode.HEX"
                                             ShowAlpha="false"
                                             Placeholder="Pick a secondary color" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudText Typo="Typo.body2" Class="mb-2">Tertiary Color</MudText>
+                            <MudColorPicker Value="@(_tertiaryColor)"
+                                            ValueChanged="OnTertiaryChanged"
+                                            ColorPickerMode="ColorPickerMode.HEX"
+                                            ShowAlpha="false"
+                                            Placeholder="Pick a tertiary color" />
                         </MudItem>
                         <MudItem xs="12">
                             <MudButton Variant="Variant.Outlined" Color="Color.Default"
@@ -89,6 +100,7 @@
 @code {
     private MudColor _primaryColor = new("#594ae2");
     private MudColor _secondaryColor = new("#ff4081");
+    private MudColor _tertiaryColor = new("#00bcd4");
 
     protected override void OnInitialized()
     {
@@ -96,6 +108,7 @@
                      ?? ThemeService.Presets[0];
         _primaryColor = new(ThemeService.Settings.CustomPrimary ?? preset.Primary);
         _secondaryColor = new(ThemeService.Settings.CustomSecondary ?? preset.Secondary);
+        _tertiaryColor = new(ThemeService.Settings.CustomTertiary ?? preset.Tertiary);
     }
 
     private async Task OnDarkModeChanged(bool isDark) =>
@@ -105,31 +118,44 @@
     {
         await ThemeService.SetPresetAsync(name);
         // Reset custom overrides when switching preset
-        await ThemeService.SetCustomColorsAsync(null, null);
+        await ThemeService.SetCustomColorsAsync(null, null, null);
 
         var preset = ThemeService.Presets.First(p => p.Name == name);
         _primaryColor = new(preset.Primary);
         _secondaryColor = new(preset.Secondary);
+        _tertiaryColor = new(preset.Tertiary);
     }
 
     private async Task OnPrimaryChanged(MudColor color)
     {
         _primaryColor = color;
-        await ThemeService.SetCustomColorsAsync(color.Value, ThemeService.Settings.CustomSecondary ?? GetPresetSecondary());
+        await ThemeService.SetCustomColorsAsync(color.Value, ThemeService.Settings.CustomSecondary ?? GetPresetSecondary(), ThemeService.Settings.CustomTertiary ?? GetPresetTertiary());
     }
 
     private async Task OnSecondaryChanged(MudColor color)
     {
         _secondaryColor = color;
-        await ThemeService.SetCustomColorsAsync(ThemeService.Settings.CustomPrimary ?? GetPresetPrimary(), color.Value);
+        await ThemeService.SetCustomColorsAsync(ThemeService.Settings.CustomPrimary ?? GetPresetPrimary(), color.Value, ThemeService.Settings.CustomTertiary ?? GetPresetTertiary());
+    }
+
+    private async Task OnTertiaryChanged(MudColor color)
+    {
+        _tertiaryColor = color;
+        await ThemeService.SetCustomColorsAsync(ThemeService.Settings.CustomPrimary ?? GetPresetPrimary(), ThemeService.Settings.CustomSecondary ?? GetPresetSecondary(), color.Value);
     }
 
     private async Task ResetCustomColors()
     {
-        await ThemeService.SetCustomColorsAsync(null, null);
+        await ThemeService.SetCustomColorsAsync(null, null, null);
         var preset = ThemeService.Presets.FirstOrDefault(p => p.Name == ThemeService.Settings.PresetName) ?? ThemeService.Presets[0];
         _primaryColor = new(preset.Primary);
         _secondaryColor = new(preset.Secondary);
+        _tertiaryColor = new(preset.Tertiary);
+    }
+
+    private async Task OnAutoDarkModeChanged(bool auto)
+    {
+        await ThemeService.SetAutoDarkModeAsync(auto);
     }
 
     private string GetPresetPrimary()
@@ -142,5 +168,11 @@
     {
         var preset = ThemeService.Presets.FirstOrDefault(p => p.Name == ThemeService.Settings.PresetName) ?? ThemeService.Presets[0];
         return preset.Secondary;
+    }
+
+    private string GetPresetTertiary()
+    {
+        var preset = ThemeService.Presets.FirstOrDefault(p => p.Name == ThemeService.Settings.PresetName) ?? ThemeService.Presets[0];
+        return preset.Tertiary;
     }
 }

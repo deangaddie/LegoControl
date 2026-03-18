@@ -1,0 +1,27 @@
+@using MudBlazor
+
+@if (ShowSkeleton)
+{
+    <MudCard Class="skeleton-card">
+        <MudCardContent>
+            <MudStack Spacing="2">
+                <div class="skeleton-text" style="height: 24px; width: 60%;"></div>
+                <div class="skeleton-text" style="height: 16px; width: 40%;"></div>
+                <MudStack Row="true" Spacing="1" Class="mt-3">
+                    <MudSkeleton Width="80px" Height="36px" />
+                    <MudSkeleton Width="80px" Height="36px" />
+                    <MudSkeleton Width="80px" Height="36px" />
+                </MudStack>
+            </MudStack>
+        </MudCardContent>
+    </MudCard>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public bool ShowSkeleton { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

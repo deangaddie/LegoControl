@@ -13,26 +13,26 @@ else
 {
     <MudText Typo="Typo.h4" GutterBottom="true">Edit Device</MudText>
 
-    <MudStack Style="max-width: 480px;" Spacing="4">
-        <MudTextField @bind-Value="_name" Label="Device Name" Variant="Variant.Outlined" />
+    <MudForm @ref="_form" @bind-IsValid="_isFormValid" Model="_device" ValidationDelay="0">
+        <MudStack Style="max-width: 480px;" Spacing="4">
+            <MudTextField @bind-Value="_device.Name" Label="Device Name" Variant="Variant.Outlined" Required="true"
+                          RequiredError="Device name is required" />
 
-        <MudSelect @bind-Value="_modelId" Label="Lego Set" Variant="Variant.Outlined" T="string">
-            @foreach (var model in ModelService.Models)
-            {
-                <MudSelectItem Value="@model.Id">@model.Name (#@model.SetNumber)</MudSelectItem>
-            }
-        </MudSelect>
+            <MudSelect @bind-Value="_device.ModelId" Label="Lego Set" Variant="Variant.Outlined" T="string" Required="true"
+                       RequiredError="Please select a Lego set">
+                @foreach (var model in ModelService.Models)
+                {
+                    <MudSelectItem Value="@model.Id">@model.Name (#@model.SetNumber)</MudSelectItem>
+                }
+            </MudSelect>
 
-        @if (_showError)
-        {
-            <MudAlert Severity="Severity.Error">Please enter a device name.</MudAlert>
-        }
-
-        <MudStack Row="true" Spacing="2">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Save</MudButton>
-            <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/devices"))">Cancel</MudButton>
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Disabled="@(!_isFormValid)">Save
+                </MudButton>
+                <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/devices"))">Cancel</MudButton>
+            </MudStack>
         </MudStack>
-    </MudStack>
+    </MudForm>
 
     @if (_device.Config.Motors.Count > 0)
     {
@@ -51,8 +51,8 @@ else
                             <MudText Typo="Typo.body1" Class="mt-1"><strong>@motor.Label</strong></MudText>
                             @if (motor.InvertDirection)
                             {
-                                <MudChip T="string" Icon="@Icons.Material.Filled.SwapVert" Size="Size.Small"
-                                         Color="Color.Default" Class="mt-1">Inverted</MudChip>
+                                <MudChip T="string" Icon="@Icons.Material.Filled.SwapVert" Size="Size.Small" Color="Color.Default"
+                                         Class="mt-1">Inverted</MudChip>
                             }
                             @if (linkedMotor is not null)
                             {
@@ -69,8 +69,8 @@ else
                             }
                             @if (_device.Config.Motors.Any(m => m.LinkedPortId == motor.PortId))
                             {
-                                <MudChip T="string" Icon="@Icons.Material.Filled.Link" Color="Color.Info"
-                                         Size="Size.Small" Class="mt-1">Follower</MudChip>
+                                <MudChip T="string" Icon="@Icons.Material.Filled.Link" Color="Color.Info" Size="Size.Small"
+                                         Class="mt-1">Follower</MudChip>
                             }
                         </MudCardContent>
                     </MudCard>
@@ -102,30 +102,21 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
+    private MudForm _form = new();
+    private bool _isFormValid;
     private Device? _device;
-    private string _name = string.Empty;
-    private string _modelId = string.Empty;
-    private bool _showError;
 
     protected override void OnParametersSet()
     {
         _device = DeviceService.Devices.FirstOrDefault(d => d.Id == Id);
-        if (_device is not null)
-        {
-            _name = _device.Name;
-            _modelId = _device.ModelId;
-        }
     }
 
     private async Task Save()
     {
-        if (string.IsNullOrWhiteSpace(_name))
-        {
-            _showError = true;
-            return;
-        }
+        await _form.ValidateAsync();
+        if (!_form.IsValid || _device is null) return;
 
-        await DeviceService.UpdateAsync(Id, _name.Trim(), _modelId);
+        await DeviceService.UpdateAsync(Id, _device.Name.Trim(), _device.ModelId);
         Nav.NavigateTo("/devices");
     }
 }

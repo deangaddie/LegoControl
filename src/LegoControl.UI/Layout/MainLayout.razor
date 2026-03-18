@@ -17,15 +17,16 @@
                        OnClick="@ToggleDrawer" />
         <MudText Typo="Typo.h6">LegoControl</MudText>
         <MudSpacer />
-        <MudIconButton Icon="@(ThemeService.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
-                       Color="Color.Inherit" OnClick="ToggleDarkMode" />
+        <MudIconButton
+        Icon="@(ThemeService.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+        Color="Color.Inherit" OnClick="ToggleDarkMode" />
         <MudIconButton Icon="@Icons.Material.Filled.Palette" Color="Color.Inherit"
                        OnClick="@(() => Nav.NavigateTo("settings"))" />
     </MudAppBar>
     <MudDrawer @bind-Open="_drawerOpen" Elevation="2">
         <NavMenu />
     </MudDrawer>
-    <MudMainContent>
+    <MudMainContent Class="main-content-mobile">
         <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
             @if (_initialized)
             {
@@ -37,11 +38,22 @@
             }
         </MudContainer>
     </MudMainContent>
+
+    <div class="mobile-nav">
+        <MudStack Row="true" Justify="Justify.SpaceEvenly">
+            <NavButton Href="" Icon="@Icons.Material.Filled.Home" Label="Home" CurrentPath="@_currentPath" />
+            <NavButton Href="devices" Icon="@Icons.Material.Filled.Devices" Label="Devices" CurrentPath="@_currentPath" />
+            <NavButton Href="models" Icon="@Icons.Material.Filled.Extension" Label="Models" CurrentPath="@_currentPath" />
+            <NavButton Href="settings" Icon="@Icons.Material.Filled.Palette" Label="Themes" CurrentPath="@_currentPath" />
+        </MudStack>
+    </div>
 </MudLayout>
 
 @code {
     bool _drawerOpen = true;
     bool _initialized = false;
+    bool _isMobile = false;
+    string _currentPath = "";
 
     void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
@@ -53,12 +65,59 @@
         await ModelService.InitializeAsync();
         await DeviceService.InitializeAsync();
         _initialized = true;
+
+        // Detect mobile on initialization
+        await DetectMobile();
+        
+        // Initialize current path
+        UpdateCurrentPath();
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Also detect mobile after render in case JS is needed
+            await DetectMobile();
+            StateHasChanged();
+        }
+    }
+
+    private async Task DetectMobile()
+    {
+        try
+        {
+            // Simple screen width detection (can be enhanced with JS interop if needed)
+            _isMobile = false; // Default to desktop, will be overridden by CSS media queries
+        }
+        catch
+        {
+            _isMobile = false;
+        }
     }
 
     private async Task ToggleDarkMode() =>
         await ThemeService.SetDarkModeAsync(!ThemeService.IsDarkMode);
 
     private void OnThemeChanged() => InvokeAsync(StateHasChanged);
+    
+    private void UpdateCurrentPath()
+    {
+        var uri = Nav.Uri;
+        var path = uri.Replace(Nav.BaseUri, "").TrimEnd('/');
+        _currentPath = string.IsNullOrEmpty(path) ? "" : path.Split('/')[0];
+    }
+    
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        UpdateCurrentPath();
+        InvokeAsync(StateHasChanged);
+    }
 
-    public void Dispose() => ThemeService.OnChanged -= OnThemeChanged;
+    public void Dispose()
+    {
+        ThemeService.OnChanged -= OnThemeChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
 }

@@ -2,6 +2,7 @@
 @inject IDeviceService DeviceService
 @inject ILegoModelService ModelService
 @inject NavigationManager Nav
+@inject IDialogService DialogService
 
 <PageTitle>Devices</PageTitle>
 
@@ -26,39 +27,28 @@ else
         {
             var d = device;
             <MudItem xs="12" sm="6" md="4">
-                <MudCard>
+                <MudCard Class="mud-theme-transition">
                     <MudCardContent>
                         <MudText Typo="Typo.h6">@d.Name</MudText>
                         <MudText Typo="Typo.body2" Color="Color.Secondary">@ModelLabel(d.ModelId)</MudText>
                     </MudCardContent>
                     <MudCardActions>
-                        @if (_pendingDeleteId == d.Id)
-                        {
-                            <MudText Typo="Typo.body2" Class="mr-2">Remove?</MudText>
-                            <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Filled"
-                                       OnClick="@(() => Delete(d.Id))" >Yes</MudButton>
-                            <MudButton Size="Size.Small" Variant="Variant.Text"
-                                       OnClick="@(() => _pendingDeleteId = null)">Cancel</MudButton>
-                        }
-                        else
-                        {
-                            <MudTooltip Text="Play">
-                                <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Color="Color.Success"
-                                               OnClick="@(() => Nav.NavigateTo($"/devices/play/{d.Id}"))" />
-                            </MudTooltip>
-                            <MudTooltip Text="Program">
-                                <MudIconButton Icon="@Icons.Material.Filled.Code" Color="Color.Info"
-                                               OnClick="@(() => Nav.NavigateTo($"/devices/program/{d.Id}"))" />
-                            </MudTooltip>
-                            <MudTooltip Text="Configure">
-                                <MudIconButton Icon="@Icons.Material.Filled.Tune"
-                                               OnClick="@(() => Nav.NavigateTo($"/devices/configure/{d.Id}"))" />
-                            </MudTooltip>
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                           OnClick="@(() => Nav.NavigateTo($"/devices/edit/{d.Id}"))" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
-                                           OnClick="@(() => _pendingDeleteId = d.Id)" />
-                        }
+                        <MudTooltip Text="Play">
+                            <MudIconButton Icon="@Icons.Material.Filled.PlayArrow" Color="Color.Success"
+                                           OnClick="@(() => Nav.NavigateTo($"/devices/play/{d.Id}"))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Program">
+                            <MudIconButton Icon="@Icons.Material.Filled.Code" Color="Color.Info"
+                                           OnClick="@(() => Nav.NavigateTo($"/devices/program/{d.Id}"))" />
+                        </MudTooltip>
+                        <MudTooltip Text="Configure">
+                            <MudIconButton Icon="@Icons.Material.Filled.Tune"
+                                           OnClick="@(() => Nav.NavigateTo($"/devices/configure/{d.Id}"))" />
+                        </MudTooltip>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       OnClick="@(() => Nav.NavigateTo($"/devices/edit/{d.Id}"))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                       OnClick="@(() => ConfirmDelete(d))" />
                     </MudCardActions>
                 </MudCard>
             </MudItem>
@@ -67,17 +57,27 @@ else
 }
 
 @code {
-    private Guid? _pendingDeleteId;
-
     private string ModelLabel(string modelId)
     {
         var m = ModelService.Models.FirstOrDefault(m => m.Id == modelId);
         return m is not null ? $"{m.Name} (#{m.SetNumber})" : modelId;
     }
 
-    private async Task Delete(Guid id)
+    private async Task ConfirmDelete(Device device)
     {
-        await DeviceService.RemoveAsync(id);
-        _pendingDeleteId = null;
+        var dialog = await DialogService.ShowAsync<ConfirmDialog>(
+            "Delete Device",
+            new DialogParameters
+            {
+                { "ContentText", $"Are you sure you want to delete '{device.Name}'? This action cannot be undone." },
+                { "ButtonText", "Delete" },
+                { "Color", Color.Error }
+            });
+
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await DeviceService.RemoveAsync(device.Id);
+        }
     }
 }

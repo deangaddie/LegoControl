@@ -7,11 +7,11 @@
 @inject NavigationManager Nav
 @implements IAsyncDisposable
 
-<div style="display: flex; flex-direction: column; height: 100%; background: #111; color: #fff; font-family: sans-serif;">
+<div class="fullscreen-layout">
 
     <!-- Top status bar -->
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: rgba(0,0,0,0.4); flex-shrink: 0;">
-        <button style="@BackButtonStyle" @onclick="GoBack">&#8592; Back</button>
+    <div class="fullscreen-status-bar">
+        <button class="fullscreen-back-button" @onclick="GoBack">&#8592; Back</button>
 
         <span style="font-size: 14px; font-weight: 600; opacity: 0.9;">@(_device?.Name ?? "Play")</span>
 
@@ -29,25 +29,24 @@
 
     @if (!BluetoothService.IsConnected)
     {
-        <div style="flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px;">
-            <span style="opacity: 0.5; font-size: 18px;">Not connected</span>
-            <span style="opacity: 0.4; font-size: 13px;">Connect via the device page</span>
+        <div class="fullscreen-disconnected">
+            <span class="fullscreen-disconnected-message">Not connected</span>
+            <span class="fullscreen-disconnected-hint">Connect via the device page</span>
         </div>
     }
     else
     {
         <!-- Main control area -->
-        <div style="flex: 1; display: flex; min-height: 0; padding: 16px; gap: 16px;">
+        <div class="fullscreen-main-area">
 
             <!-- Left pad: throttle (vertical) -->
-            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+            <div class="fullscreen-control-section">
                 <span style="font-size: 11px; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px;">Throttle</span>
-                <div style="flex: 1; width: 100%; max-width: 200px; aspect-ratio: 1; position: relative;">
+                <div class="fullscreen-joystick-container">
                     <!-- Vertical guide line -->
-                    <div style="position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(255,255,255,0.1);"></div>
-                    <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.1);"></div>
-                    <TouchJoystick Axis="TouchJoystick.JoystickAxis.Vertical"
-                                   ValueChanged="OnThrottleChanged" />
+                    <div class="fullscreen-guide-line-vertical"></div>
+                    <div class="fullscreen-guide-line-horizontal"></div>
+                    <TouchJoystick Axis="TouchJoystick.JoystickAxis.Vertical"                                   ValueChanged="OnThrottleChanged" />
                 </div>
                 <div style="font-size: 12px; opacity: 0.6;">
                     <span style="color: #ffd54f;">@_throttlePercent%</span>
@@ -55,22 +54,18 @@
             </div>
 
             <!-- Centre feedback overlay -->
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-width: 80px; overflow: hidden;">
-                <MotorFeedbackPanel Motors="_motors"
-                                    HubService="HubService"
-                                    RequestedSpeeds="_requestedSpeeds"
-                                    RequestedPositions="_requestedPositions"
-                                    Style="flex-direction: column; align-items: center;" />
+            <div class="fullscreen-feedback-section">
+                <MotorFeedbackPanel Motors="_motors"                                    HubService="HubService"                                    RequestedSpeeds="_requestedSpeeds"
+                                    RequestedPositions="_requestedPositions"                                    Style="flex-direction: column; align-items: center;" />
             </div>
 
             <!-- Right pad: steering (horizontal) -->
-            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+            <div class="fullscreen-control-section">
                 <span style="font-size: 11px; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px;">Steering</span>
-                <div style="flex: 1; width: 100%; max-width: 200px; aspect-ratio: 1; position: relative;">
-                    <div style="position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(255,255,255,0.1);"></div>
-                    <div style="position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.1);"></div>
-                    <TouchJoystick Axis="TouchJoystick.JoystickAxis.Horizontal"
-                                   ValueChanged="OnSteerChanged" />
+                <div class="fullscreen-joystick-container">
+                    <div class="fullscreen-guide-line-vertical"></div>
+                    <div class="fullscreen-guide-line-horizontal"></div>
+                    <TouchJoystick Axis="TouchJoystick.JoystickAxis.Horizontal"                                   ValueChanged="OnSteerChanged" />
                 </div>
                 <div style="font-size: 12px; opacity: 0.6;">
                     <span style="color: #ffd54f;">@_steerDegrees°</span>
@@ -99,10 +94,6 @@
     private float _lastThrottle = 0f;
     private float _lastSteer = 0f;
 
-    private string BackButtonStyle =>
-        "background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 6px 12px; " +
-        "border-radius: 6px; font-size: 14px; cursor: pointer;";
-
     protected override void OnParametersSet()
     {
         _device = DeviceService.Devices.FirstOrDefault(d => d.Id == Id);
@@ -111,10 +102,16 @@
         _model = ModelService.Models.FirstOrDefault(m => m.Id == _device.ModelId);
         _motors = _device.Config.Motors.Select(m => new MotorConfig
         {
-            PortId = m.PortId, Label = m.Label, Role = m.Role,
-            InvertDirection = m.InvertDirection, LinkedPortId = m.LinkedPortId, InvertLink = m.InvertLink,
-            MinSpeed = m.MinSpeed, MaxSpeed = m.MaxSpeed,
-            SteeringMaxLeft = m.SteeringMaxLeft, SteeringMaxRight = m.SteeringMaxRight,
+            PortId = m.PortId,
+            Label = m.Label,
+            Role = m.Role,
+            InvertDirection = m.InvertDirection,
+            LinkedPortId = m.LinkedPortId,
+            InvertLink = m.InvertLink,
+            MinSpeed = m.MinSpeed,
+            MaxSpeed = m.MaxSpeed,
+            SteeringMaxLeft = m.SteeringMaxLeft,
+            SteeringMaxRight = m.SteeringMaxRight,
         }).ToList();
 
         foreach (var m in _motors)
