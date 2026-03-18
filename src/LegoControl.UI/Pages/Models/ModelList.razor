@@ -15,6 +15,14 @@
     </MudButton>
 </MudStack>
 
+<MudText Typo="Typo.body1" Class="mb-2">
+    A <strong>model</strong> describes the hardware layout of a Lego set — which motors and sensors are attached, and which ports they use.
+    Built-in models are pre-configured for known Lego sets. You can edit them to match your build, or add your own by configuring manually or importing a JSON file.
+</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    Once you have a model, head to <MudLink Href="/devices">My Devices</MudLink> to register a physical hub and start controlling it.
+</MudText>
+
 @{
     var builtIn = ModelService.Models.Where(m => m.IsBuiltIn).ToList();
     var userAdded = ModelService.Models.Where(m => !m.IsBuiltIn).ToList();
@@ -77,7 +85,7 @@
 @if (!userAdded.Any())
 {
     <MudAlert Severity="Severity.Info">
-        No custom models added yet. Click <strong>Add Model</strong> to upload a JSON model file.
+        No custom models added yet. Click <strong>Add Model</strong> to configure one manually or upload a JSON file.
     </MudAlert>
 }
 else

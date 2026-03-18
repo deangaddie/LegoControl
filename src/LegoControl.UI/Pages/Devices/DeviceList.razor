@@ -14,6 +14,15 @@
     </MudButton>
 </MudStack>
 
+<MudText Typo="Typo.body1" Class="mb-2">
+    A <strong>device</strong> is a physical Lego hub (e.g. a Boost Move Hub) that you connect to via Bluetooth.
+    Each device is linked to a <strong>model</strong> that describes its hardware layout, so LegoControl knows which motors and sensors to expect.
+    From here you can <strong>play</strong> (drive it live), <strong>program</strong> (set up automated sequences), or <strong>configure</strong> its control mappings.
+</MudText>
+<MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+    Don't see the right model available when adding a device? Go to <MudLink Href="/models">Models</MudLink> to browse or customise the available hardware layouts.
+</MudText>
+
 @if (!DeviceService.Devices.Any())
 {
     <MudAlert Severity="Severity.Info" Class="mt-4">
