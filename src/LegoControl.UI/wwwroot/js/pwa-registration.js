@@ -41,6 +41,10 @@ export function applyUpdate() {
         // Tell the waiting SW to activate immediately
         _waitingWorker.postMessage({ type: 'SKIP_WAITING' });
     }
-    // Reload once the new SW takes control
-    navigator.serviceWorker.addEventListener('controllerchange', () => location.reload());
+    // Reload once the new SW takes control.
+    // Fallback timeout handles Firefox where controllerchange may not fire reliably.
+    let reloaded = false;
+    const reload = () => { if (!reloaded) { reloaded = true; location.reload(); } };
+    navigator.serviceWorker.addEventListener('controllerchange', reload);
+    setTimeout(reload, 2000);
 }
