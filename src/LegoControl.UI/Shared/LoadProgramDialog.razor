@@ -1,0 +1,61 @@
+@using MudBlazor
+@using LegoControl.UI.Services
+
+<MudDialog>
+    <DialogContent>
+        @if (_programs.Count == 0)
+        {
+            <MudText Color="Color.Secondary">No saved programs yet.</MudText>
+        }
+        else
+        {
+            <MudList T="SavedProgramEntry" Dense="true" Style="min-width: 320px;">
+                @foreach (var prog in _programs)
+                {
+                    <MudListItem>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                            <div>
+                                <MudText>@prog.Name</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @prog.SavedAt.ToLocalTime().ToString("g")
+                                </MudText>
+                            </div>
+                            <MudStack Row="true" Spacing="1">
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                           OnClick="@(() => Load(prog))">Load</MudButton>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error" OnClick="@(() => DeleteAsync(prog))" />
+                            </MudStack>
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public List<SavedProgramEntry> SavedPrograms { get; set; } = [];
+    [Parameter] public Func<string, Task>? OnDelete { get; set; }
+
+    private List<SavedProgramEntry> _programs = [];
+
+    protected override void OnInitialized() => _programs = [.. SavedPrograms];
+
+    private void Load(SavedProgramEntry prog) => MudDialog.Close(DialogResult.Ok(prog));
+
+    private async Task DeleteAsync(SavedProgramEntry prog)
+    {
+        _programs.Remove(prog);
+        if (OnDelete is not null)
+            await OnDelete(prog.Id);
+        StateHasChanged();
+    }
+
+    private void Cancel() => MudDialog.Close(DialogResult.Cancel());
+}

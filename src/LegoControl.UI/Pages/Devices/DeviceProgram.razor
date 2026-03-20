@@ -5,7 +5,10 @@
 @inject ILegoHubService HubService
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject IDialogService DialogService
 @implements IAsyncDisposable
+@using LegoControl.UI.Services
+@using System.Text.Json
 
 <PageTitle>Program — @(_device?.Name ?? "Device")</PageTitle>
 
@@ -47,7 +50,7 @@ else
         <MudButton Variant="Variant.Outlined" Size="Size.Small"
                    StartIcon="@Icons.Material.Filled.Save"
                    Disabled="@_running"
-                   OnClick="SaveProgramAsync">Save</MudButton>
+                   OnClick="SaveProgramAsync">Save As…</MudButton>
 
         <MudButton Variant="Variant.Outlined" Size="Size.Small"
                    StartIcon="@Icons.Material.Filled.FolderOpen"
@@ -117,13 +120,14 @@ else
     private bool _running = false;
     private bool _statusIsError = false;
     private string? _status = null;
+    private string _lastLoadedName = "";
     private CancellationTokenSource? _cts;
 
     private readonly Dictionary<string, int> _requestedSpeeds = new();
     private readonly Dictionary<string, int> _requestedPositions = new();
 
-    private string ProgramStorageKey => $"lc_program_{Id}";
     private string WorkspaceStateKey => $"lc_workspace_{Id}";
+    private string SavedProgramsKey => $"lc_programs_{Id}";
 
     protected override void OnParametersSet()
     {
@@ -257,9 +261,20 @@ else
     private async Task SaveProgramAsync()
     {
         if (_jsModule is null) return;
+
+        var dialog = await DialogService.ShowAsync<SaveProgramDialog>("Save Program",
+            new DialogParameters { [nameof(SaveProgramDialog.InitialName)] = _lastLoadedName });
+        var result = await dialog.Result;
+        if (result.Canceled || result.Data is not string name) return;
+
         var state = await _jsModule.InvokeAsync<string>("getWorkspaceState");
-        await JS.InvokeVoidAsync("localStorage.setItem", WorkspaceStateKey, state);
-        _status = "Program saved.";
+        var programs = await LoadSavedProgramsAsync();
+
+        programs.Add(new SavedProgramEntry(Guid.NewGuid().ToString(), name, state, DateTime.UtcNow));
+        await PersistSavedProgramsAsync(programs);
+
+        _lastLoadedName = name;
+        _status = $"Saved as \"{name}\".";
         _statusIsError = false;
         StateHasChanged();
     }
@@ -267,27 +282,51 @@ else
     private async Task LoadProgramAsync()
     {
         if (_jsModule is null) return;
-        var saved = await JS.InvokeAsync<string?>("localStorage.getItem", WorkspaceStateKey);
-        if (saved is null)
+
+        var programs = await LoadSavedProgramsAsync();
+        var parameters = new DialogParameters
         {
-            _status = "No saved program found.";
+            [nameof(LoadProgramDialog.SavedPrograms)] = programs,
+            [nameof(LoadProgramDialog.OnDelete)] = (Func<string, Task>)DeleteSavedProgramAsync
+        };
+        var dialog = await DialogService.ShowAsync<LoadProgramDialog>("Load Program", parameters);
+        var result = await dialog.Result;
+        if (result.Canceled || result.Data is not SavedProgramEntry entry) return;
+
+        try
+        {
+            await _jsModule.InvokeVoidAsync("setWorkspaceState", entry.State);
+            _lastLoadedName = entry.Name;
+            _status = $"Loaded \"{entry.Name}\".";
+            _statusIsError = false;
+        }
+        catch
+        {
+            _status = "Failed to load program.";
             _statusIsError = true;
         }
-        else
-        {
-            try
-            {
-                await _jsModule.InvokeVoidAsync("setWorkspaceState", saved);
-                _status = "Program loaded.";
-                _statusIsError = false;
-            }
-            catch
-            {
-                _status = "Failed to load saved program.";
-                _statusIsError = true;
-            }
-        }
         StateHasChanged();
+    }
+
+    private async Task<List<SavedProgramEntry>> LoadSavedProgramsAsync()
+    {
+        var json = await JS.InvokeAsync<string?>("localStorage.getItem", SavedProgramsKey);
+        if (json is null) return [];
+        try { return JsonSerializer.Deserialize<List<SavedProgramEntry>>(json) ?? []; }
+        catch { return []; }
+    }
+
+    private async Task PersistSavedProgramsAsync(List<SavedProgramEntry> programs)
+    {
+        var json = JsonSerializer.Serialize(programs);
+        await JS.InvokeVoidAsync("localStorage.setItem", SavedProgramsKey, json);
+    }
+
+    private async Task DeleteSavedProgramAsync(string id)
+    {
+        var programs = await LoadSavedProgramsAsync();
+        programs.RemoveAll(p => p.Id == id);
+        await PersistSavedProgramsAsync(programs);
     }
 
     private async Task ClearProgramAsync()
