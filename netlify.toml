@@ -1,8 +1,0 @@
-[build]
-  command = "dotnet publish src/LegoControl.UI -c Release -o publish"
-  publish = "publish/wwwroot"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200

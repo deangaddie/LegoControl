@@ -5,7 +5,8 @@
       "Bash(dotnet sln:*)",
       "Bash(dotnet add:*)",
       "Bash(dotnet build:*)",
-      "Bash(dotnet test:*)"
+      "Bash(dotnet test:*)",
+      "Bash(find /d/Dev/Repos/deangaddie/LegoControl -name *.md -o -name TODO* -o -name ROADMAP*)"
     ]
   }
 }
