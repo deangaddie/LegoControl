@@ -45,9 +45,10 @@ public record SensorValueNode(string PortId, string SensorType) : ExprNode;
 [JsonDerivedType(typeof(WhileNode),       typeDiscriminator: "while")]
 [JsonDerivedType(typeof(SetVarNode),      typeDiscriminator: "setVar")]
 [JsonDerivedType(typeof(WaitUntilNode),   typeDiscriminator: "waitUntil")]
+[JsonDerivedType(typeof(ParallelNode),    typeDiscriminator: "parallel")]
 public abstract record ProgramNode;
 
-public record DriveNode(string PortId, int Speed, int DurationMs) : ProgramNode;
+public record DriveNode(string? PortId, int Speed, int DurationMs) : ProgramNode;  // null = all drive motors
 public record SteerNode(string PortId, int Degrees, int DurationMs) : ProgramNode;
 public record StopNode(string? PortId) : ProgramNode;      // null = all drive motors
 public record WaitNode(int DurationMs) : ProgramNode;
@@ -67,6 +68,9 @@ public record SetVarNode(string Name, ExprNode Value) : ProgramNode;
 
 // Polls Condition every PollMs until truthy.
 public record WaitUntilNode(ExprNode Condition, int PollMs = 200) : ProgramNode;
+
+// Runs all branches concurrently; completes when all finish.
+public record ParallelNode(IReadOnlyList<IReadOnlyList<ProgramNode>> Branches) : ProgramNode;
 
 // ── Serialization ──────────────────────────────────────────────────────────
 

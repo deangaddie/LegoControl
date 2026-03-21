@@ -11,6 +11,7 @@ function getDriveOptions() {
     const opts = _motorDefs
         .filter(m => m.role === 'Drive' || m.role === 'Auxiliary')
         .map(m => [m.label, m.portId]);
+    if (opts.length > 1) opts.unshift(['All Drive Motors', '']);
     return opts.length > 0 ? opts : [['Motor A', 'A']];
 }
 
@@ -176,6 +177,22 @@ function registerLegoBlocks() {
         }
     };
 
+    // Run two stacks simultaneously; waits until both finish
+    B.Blocks['lego_run_together'] = {
+        init() {
+            this.appendDummyInput()
+                .appendField('run together');
+            this.appendStatementInput('STACK1')
+                .appendField('do');
+            this.appendStatementInput('STACK2')
+                .appendField('and');
+            this.setPreviousStatement(true, null);
+            this.setNextStatement(true, null);
+            this.setColour(120);
+            this.setTooltip('Start two groups of blocks at the same time. Waits until both finish before continuing.');
+        }
+    };
+
     // Named color constant for comparison
     B.Blocks['lego_color_const'] = {
         init() {
@@ -207,7 +224,7 @@ function buildToolbox() {
 
     // ── Lego: Motors ──────────────────────────────────────────────────────
     const motorContents = [];
-    if (hasDrive)  motorContents.push({ kind: 'block', type: 'lego_drive' }, { kind: 'block', type: 'lego_stop' });
+    if (hasDrive)  motorContents.push({ kind: 'block', type: 'lego_drive' }, { kind: 'block', type: 'lego_stop' }, { kind: 'block', type: 'lego_run_together' });
     if (hasSteer)  motorContents.push({ kind: 'block', type: 'lego_steer' });
     if (motorContents.length > 0)
         categories.push({ kind: 'category', name: 'Motors', colour: '120', contents: motorContents });
@@ -377,13 +394,15 @@ function blockToNode(block) {
 
     switch (block.type) {
         // ── Lego motor blocks ──────────────────────────────────────────────
-        case 'lego_drive':
+        case 'lego_drive': {
+            const port = block.getFieldValue('PORT');
             return {
                 type: 'drive',
-                portId: block.getFieldValue('PORT'),
+                portId: port === '' ? null : port,
                 speed: parseInt(block.getFieldValue('SPEED'), 10),
                 durationMs: Math.round(parseFloat(block.getFieldValue('DURATION')) * 1000)
             };
+        }
 
         case 'lego_steer':
             return {
@@ -469,6 +488,16 @@ function blockToNode(block) {
                 value: blockToExpr(block.getInputTargetBlock('VALUE'))
             };
         }
+
+        // ── Run together (parallel) ───────────────────────────────────────
+        case 'lego_run_together':
+            return {
+                type: 'parallel',
+                branches: [
+                    blocksToNodes(block.getInputTargetBlock('STACK1')),
+                    blocksToNodes(block.getInputTargetBlock('STACK2'))
+                ]
+            };
 
         // ── Standard: Procedures (functions) ─────────────────────────────
         // Procedure call blocks are named procedures_callnoreturn / procedures_callreturn.

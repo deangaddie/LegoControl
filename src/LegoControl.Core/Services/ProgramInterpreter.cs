@@ -28,27 +28,43 @@ public class ProgramInterpreter(
         {
             case DriveNode d:
             {
-                var motor = motors.FirstOrDefault(m => m.PortId == d.PortId);
-                if (motor is null) break;
+                var targets = d.PortId is null
+                    ? motors.Where(m => m.Role == MotorRole.Drive || m.Role == MotorRole.Auxiliary).ToList()
+                    : motors.Where(m => m.PortId == d.PortId).ToList();
 
-                progress?.Report($"Drive {motor.Label} at {d.Speed}% for {d.DurationMs / 1000.0:0.#}s");
+                if (targets.Count == 0) break;
 
-                int actual = motor.InvertDirection ? -d.Speed : d.Speed;
-                await bluetooth.SendCommandAsync(LegoCommandBuilder.StartPower(motor.PortId, actual));
+                var label = d.PortId is null ? "All Drive Motors" : targets[0].Label;
+                progress?.Report($"Drive {label} at {d.Speed}% for {d.DurationMs / 1000.0:0.#}s");
 
-                if (motor.LinkedPortId is not null)
+                // Collect all physical ports to drive (including linked ports)
+                var allPorts = new List<(string PortId, int Speed)>();
+                foreach (var motor in targets)
                 {
-                    var linked = motors.FirstOrDefault(m => m.PortId == motor.LinkedPortId);
-                    int linkedRaw = motor.InvertLink ? -actual : actual;
-                    int linkedActual = linked?.InvertDirection == true ? -linkedRaw : linkedRaw;
-                    await bluetooth.SendCommandAsync(LegoCommandBuilder.StartPower(motor.LinkedPortId, linkedActual));
+                    int actual = motor.InvertDirection ? -d.Speed : d.Speed;
+                    allPorts.Add((motor.PortId, actual));
+
+                    if (motor.LinkedPortId is not null)
+                    {
+                        var linked = motors.FirstOrDefault(m => m.PortId == motor.LinkedPortId);
+                        int linkedRaw = motor.InvertLink ? -actual : actual;
+                        int linkedActual = linked?.InvertDirection == true ? -linkedRaw : linkedRaw;
+                        allPorts.Add((motor.LinkedPortId, linkedActual));
+                    }
+                }
+
+                // De-duplicate ports (in case linked ports overlap with direct targets)
+                var seen = new HashSet<string>();
+                foreach (var (portId, speed) in allPorts)
+                {
+                    if (seen.Add(portId))
+                        await bluetooth.SendCommandAsync(LegoCommandBuilder.StartPower(portId, speed));
                 }
 
                 await Task.Delay(d.DurationMs, ct);
 
-                await bluetooth.SendCommandAsync(LegoCommandBuilder.StartPower(motor.PortId, 0));
-                if (motor.LinkedPortId is not null)
-                    await bluetooth.SendCommandAsync(LegoCommandBuilder.StartPower(motor.LinkedPortId, 0));
+                foreach (var portId in seen)
+                    await bluetooth.SendCommandAsync(LegoCommandBuilder.StartPower(portId, 0));
                 break;
             }
 
@@ -147,6 +163,17 @@ public class ProgramInterpreter(
                     if (IsTruthy(await EvaluateAsync(wu.Condition, ct))) break;
                     await Task.Delay(wu.PollMs, ct);
                 }
+                break;
+            }
+
+            case ParallelNode par:
+            {
+                progress?.Report("Running in parallel…");
+                await Task.WhenAll(par.Branches.Select(async branch =>
+                {
+                    foreach (var child in branch)
+                        await ExecuteNodeAsync(child, progress, ct);
+                }));
                 break;
             }
         }
